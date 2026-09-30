@@ -441,8 +441,14 @@ function initMapIfNeeded(){
   const s = document.createElement('script');
   s.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}`;
   s.onload = ()=>{ window.__mapsLoaded = true; createMap(28.6139,77.2090); };
+  s.onerror = ()=>{
+    document.getElementById('mapWrap').innerHTML = '<div style="padding:20px;font-size:13px;text-align:center;color:#8A1E1E">Google Maps load nahi hua. Cloud Console me "Maps JavaScript API" enable hai aur billing on hai check karo.</div>';
+  };
   document.head.appendChild(s);
 }
+window.gm_authFailure = function(){
+  document.getElementById('mapWrap').innerHTML = '<div style="padding:20px;font-size:13px;text-align:center;color:#8A1E1E">Google Maps key reject ho gayi (auth failure). Cloud Console me billing enabled hai aur key ki website restriction sahi domain (ashwaniash.github.io) pe set hai, ye check karo.</div>';
+};
 
 function createMap(lat,lng){
   map = new google.maps.Map(document.getElementById('map'), {
