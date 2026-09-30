@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bhukkadganj — Admin</title>
+
+<!-- ============================================================
+  SETUP:
+  1. Same FIREBASE_CONFIG as index.html — paste it below.
+  2. ADMIN_PIN — change this from the default before using.
+  3. This panel writes order status with no auth check beyond the PIN screen
+     (the PIN only gates the browser UI, not Firestore itself). That's fine
+     for a single-café internal tool, but for real security later, restrict
+     the Firestore "orders" update rule to a specific admin email checked via
+     Firebase Auth instead of relying on the PIN alone.
+============================================================ -->
+<script>
+  const FIREBASE_CONFIG = {
+    apiKey: "AIzaSyCesqIA7mo7is2g7WStUb4Yq6CbQE0L9wI",
+    authDomain: "bhukkadganj.firebaseapp.com",
+    projectId: "bhukkadganj",
+    storageBucket: "bhukkadganj.firebasestorage.app",
+    messagingSenderId: "365351427862",
+    appId: "1:365351427862:web:a2774550c390753e68ba37"
+  };
+  const ADMIN_PIN = "1234";
+</script>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+
+<style>
+  :root{
+    --ink:#241A16; --paper:#FFF7EA; --paper-2:#F3E8D3;
+    --marigold:#E3A008; --teal:#0F5C5C; --teal-dark:#0A4444;
+    --line:#E4D6BC; --red:#B3261E; --green:#1E5C1E;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--paper);color:var(--ink);font-family:'Plus Jakarta Sans',sans-serif;}
+  h1,h2{font-family:'Baloo 2',sans-serif;}
+  button{font-family:inherit;cursor:pointer;border:none;}
+
+  #pinScreen{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;background:var(--teal-dark);color:#fff;}
+  #pinScreen h1{margin-bottom:20px;}
+  #pinInput{padding:14px 18px;font-size:20px;border-radius:10px;border:none;text-align:center;letter-spacing:6px;width:160px;}
+  #pinSubmit{margin-top:14px;background:var(--marigold);color:var(--ink);padding:10px 28px;border-radius:8px;font-weight:700;}
+  #pinError{color:#FFB4B0;font-size:13px;margin-top:10px;display:none;}
+
+  #dash{display:none;max-width:900px;margin:0 auto;padding:20px;}
+  #dash.show{display:block;}
+  header{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;flex-wrap:wrap;gap:10px;}
+  .stat-bar{display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;}
+  .stat{background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px 16px;font-size:13px;}
+  .stat b{font-family:'Baloo 2',sans-serif;font-size:20px;display:block;}
+
+  .filter-bar{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;}
+  .filter-bar button{padding:7px 16px;border-radius:999px;background:#fff;border:1px solid var(--line);font-size:13px;font-weight:600;color:#6b5e4f;}
+  .filter-bar button.active{background:var(--ink);color:var(--paper);}
+
+  .order-card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:14px;}
+  .order-top{display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;}
+  .oid{font-size:12px;color:#9a8b76;}
+  .cust-name{font-weight:700;font-size:16px;margin-top:2px;}
+  .cust-meta{font-size:13px;color:#6b5e4f;margin-top:2px;}
+  .addr-link{font-size:13px;color:var(--teal);text-decoration:none;font-weight:600;}
+  .items-list{margin:12px 0;font-size:14px;}
+  .items-list div{padding:3px 0;}
+  .total{font-weight:700;font-size:15px;margin:6px 0 12px;}
+
+  .status-pill{display:inline-block;padding:4px 12px;border-radius:999px;font-size:12px;font-weight:700;}
+  .status-placed{background:#FDECC8;color:#8A5A00;}
+  .status-confirmed{background:#DCEEFB;color:#0B5583;}
+  .status-preparing{background:#FDECC8;color:#8A5A00;}
+  .status-out_for_delivery{background:#E1EFE1;color:var(--green);}
+  .status-delivered{background:#E7E7E7;color:#444;}
+  .status-cancelled{background:#FBDCDC;color:#8A1E1E;}
+
+  .action-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;align-items:center;}
+  .action-row button{padding:8px 14px;border-radius:8px;font-size:12px;font-weight:700;color:#fff;}
+  .btn-confirm{background:#0B5583;}
+  .btn-preparing{background:#8A5A00;}
+  .btn-out{background:var(--green);}
+  .btn-delivered{background:#555;}
+  .btn-cancel{background:var(--red);}
+  .eta-input{padding:7px 10px;border-radius:8px;border:1px solid var(--line);font-size:12px;width:110px;}
+  .eta-save{background:var(--marigold);color:var(--ink);padding:7px 12px;border-radius:8px;font-size:12px;font-weight:700;}
+
+  .empty-state{text-align:center;padding:60px 20px;color:#9a8b76;}
+</style>
+</head>
+<body>
+
+<div id="pinScreen">
+  <h1>Bhukkadganj Admin</h1>
+  <input id="pinInput" type="password" maxlength="6" placeholder="••••">
+  <button id="pinSubmit" onclick="checkPin()">Unlock</button>
+  <div id="pinError">Galat PIN, dobara try karo.</div>
+</div>
+
+<div id="dash">
+  <header>
+    <h2 style="margin:0">Orders</h2>
+    <div class="stat-bar">
+      <div class="stat"><b id="statToday">0</b>Today's orders</div>
+      <div class="stat"><b id="statActive">0</b>Active</div>
+      <div class="stat"><b id="statRevenue">₹0</b>Today's revenue</div>
+    </div>
+  </header>
+
+  <div class="filter-bar">
+    <button class="active" data-f="all" onclick="setFilter('all',this)">All</button>
+    <button data-f="placed" onclick="setFilter('placed',this)">Placed</button>
+    <button data-f="confirmed" onclick="setFilter('confirmed',this)">Confirmed</button>
+    <button data-f="preparing" onclick="setFilter('preparing',this)">Preparing</button>
+    <button data-f="out_for_delivery" onclick="setFilter('out_for_delivery',this)">Out for delivery</button>
+    <button data-f="delivered" onclick="setFilter('delivered',this)">Delivered</button>
+  </div>
+
+  <div id="ordersList"></div>
+</div>
+
+<script>
+function checkPin(){
+  const val = document.getElementById('pinInput').value;
+  if(val === ADMIN_PIN){
+    document.getElementById('pinScreen').style.display = 'none';
+    document.getElementById('dash').classList.add('show');
+    initFirebaseAndListen();
+  } else {
+    document.getElementById('pinError').style.display = 'block';
+  }
+}
+document.getElementById('pinInput').addEventListener('keydown', e=>{ if(e.key==='Enter') checkPin(); });
+
+let allOrders = [];
+let currentFilter = 'all';
+
+function initFirebaseAndListen(){
+  firebase.initializeApp(FIREBASE_CONFIG);
+  const db = firebase.firestore();
+  db.collection('orders').orderBy('createdAt','desc').onSnapshot(snap=>{
+    allOrders = snap.docs.map(d=>({id:d.id, ref:d.ref, ...d.data()}));
+    renderStats();
+    renderList();
+  }, err=>{
+    console.error(err);
+    alert('Firestore error: '+err.message);
+  });
+}
+
+function renderStats(){
+  const today = new Date(); today.setHours(0,0,0,0);
+  const todays = allOrders.filter(o=>o.createdAt && o.createdAt.toDate() >= today);
+  const active = allOrders.filter(o=>!['delivered','cancelled'].includes(o.status));
+  const revenue = todays.filter(o=>o.status!=='cancelled').reduce((s,o)=>s+(o.total||0),0);
+  document.getElementById('statToday').textContent = todays.length;
+  document.getElementById('statActive').textContent = active.length;
+  document.getElementById('statRevenue').textContent = '₹'+revenue;
+}
+
+function setFilter(f, el){
+  currentFilter = f;
+  document.querySelectorAll('.filter-bar button').forEach(b=>b.classList.remove('active'));
+  el.classList.add('active');
+  renderList();
+}
+
+const STATUS_LABEL = {
+  placed:'Placed', confirmed:'Confirmed', preparing:'Preparing',
+  out_for_delivery:'Out for delivery', delivered:'Delivered', cancelled:'Cancelled'
+};
+
+function renderList(){
+  let list = allOrders;
+  if(currentFilter !== 'all') list = list.filter(o=>o.status===currentFilter);
+
+  if(list.length===0){
+    document.getElementById('ordersList').innerHTML = `<div class="empty-state">Koi order nahi mila.</div>`;
+    return;
+  }
+
+  document.getElementById('ordersList').innerHTML = list.map(o=>{
+    const addr = o.address || {};
+    const mapUrl = addr.lat ? `https://www.google.com/maps?q=${addr.lat},${addr.lng}` : '#';
+    const itemsHtml = (o.items||[]).map(i=>`<div>${i.name} × ${i.qty} — ₹${i.price*i.qty}</div>`).join('');
+    return `
+      <div class="order-card">
+        <div class="order-top">
+          <div>
+            <div class="oid">#${o.id.slice(-6).toUpperCase()}</div>
+            <div class="cust-name">${o.customerName || 'Customer'}</div>
+            <div class="cust-meta">${o.phone || o.email || ''} &middot; ${addr.label || 'Address'}</div>
+            <a class="addr-link" href="${mapUrl}" target="_blank">📍 View location on map</a>
+          </div>
+          <span class="status-pill status-${o.status}">${STATUS_LABEL[o.status] || o.status}</span>
+        </div>
+        <div class="items-list">${itemsHtml}</div>
+        <div class="total">Total: ₹${o.total}</div>
+        <div class="action-row">
+          <button class="btn-confirm" onclick="updateStatus('${o.id}','confirmed')">Confirm</button>
+          <button class="btn-preparing" onclick="updateStatus('${o.id}','preparing')">Preparing</button>
+          <button class="btn-out" onclick="updateStatus('${o.id}','out_for_delivery')">Out for delivery</button>
+          <button class="btn-delivered" onclick="updateStatus('${o.id}','delivered')">Delivered</button>
+          <button class="btn-cancel" onclick="updateStatus('${o.id}','cancelled')">Cancel</button>
+        </div>
+        <div class="action-row">
+          <input class="eta-input" id="eta-${o.id}" placeholder="e.g. 25 mins" value="${o.eta||''}">
+          <button class="eta-save" onclick="saveEta('${o.id}')">Save ETA</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function updateStatus(orderId, status){
+  const order = allOrders.find(o=>o.id===orderId);
+  order.ref.update({status, updatedAt: firebase.firestore.FieldValue.serverTimestamp()});
+}
+function saveEta(orderId){
+  const val = document.getElementById('eta-'+orderId).value;
+  const order = allOrders.find(o=>o.id===orderId);
+  order.ref.update({eta: val});
+}
+</script>
+</body>
+</html>

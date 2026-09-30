@@ -1,0 +1,735 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Bhukkadganj</title>
+
+<!-- ============================================================
+  SETUP — fill these in before this app will work:
+  1. FIREBASE_CONFIG below — from Firebase Console > Project Settings > General > Your apps > Web app
+  2. Enable "Google" sign-in method: Firebase Console > Authentication > Sign-in method
+  3. Create a Firestore database: Firebase Console > Firestore Database > Create database
+  4. GOOGLE_MAPS_API_KEY below — from Google Cloud Console > APIs & Services > Credentials
+     Enable "Maps JavaScript API" for that key (billing must be on, but usage stays inside
+     the free monthly quota for a small café's order volume)
+  5. Firestore security rules (Firebase Console > Firestore > Rules) — starter rules:
+
+     rules_version = '2';
+     service cloud.firestore {
+       match /databases/{database}/documents {
+         match /customers/{uid} {
+           allow read, write: if request.auth != null && request.auth.uid == uid;
+         }
+         match /orders/{orderId} {
+           allow read: if request.auth != null &&
+             (resource.data.customerUid == request.auth.uid || true);
+           allow create: if request.auth != null && request.resource.data.customerUid == request.auth.uid;
+           allow update: if true; // admin.html updates status — see note in that file
+         }
+       }
+     }
+============================================================ -->
+
+<script>
+  const FIREBASE_CONFIG = {
+    apiKey: "AIzaSyCesqIA7mo7is2g7WStUb4Yq6CbQE0L9wI",
+    authDomain: "bhukkadganj.firebaseapp.com",
+    projectId: "bhukkadganj",
+    storageBucket: "bhukkadganj.firebasestorage.app",
+    messagingSenderId: "365351427862",
+    appId: "1:365351427862:web:a2774550c390753e68ba37"
+  };
+  const GOOGLE_MAPS_API_KEY = "YOUR_GOOGLE_MAPS_API_KEY";
+  const DELIVERY_FEE = 30;
+</script>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+
+<style>
+  :root{
+    --ink:#241A16; --paper:#FFF7EA; --paper-2:#F3E8D3;
+    --marigold:#E3A008; --marigold-dark:#B87F06;
+    --teal:#0F5C5C; --teal-dark:#0A4444;
+    --line:#E4D6BC; --red:#B3261E;
+    --radius:16px;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--paper);color:var(--ink);font-family:'Plus Jakarta Sans',sans-serif;-webkit-font-smoothing:antialiased;}
+  h1,h2,h3,.brand,.section-title,.detail-name{font-family:'Baloo 2',sans-serif;}
+  .screen{min-height:100vh;display:none;flex-direction:column;}
+  .screen.active{display:flex;}
+  button{font-family:inherit;cursor:pointer;border:none;}
+  input{font-family:inherit;}
+
+  /* ---------- Auth screen ---------- */
+  #authScreen{align-items:center;justify-content:center;text-align:center;padding:32px;background:linear-gradient(180deg,var(--teal) 0%,var(--teal-dark) 100%);color:var(--paper);position:relative;}
+  #authScreen .brand{font-size:44px;font-weight:800;margin:0 0 6px;letter-spacing:-0.5px;}
+  #authScreen .tag{opacity:.85;font-size:15px;margin-bottom:40px;font-weight:500;}
+  .google-btn{display:flex;align-items:center;gap:12px;background:var(--paper);color:var(--ink);padding:14px 28px;border-radius:999px;font-weight:700;font-size:15px;box-shadow:0 6px 20px rgba(0,0,0,.25);}
+  .google-btn svg{width:20px;height:20px;}
+  #authScreen .foot{position:absolute;bottom:24px;font-size:12px;opacity:.6;font-weight:500;}
+  #testBypass{margin-top:18px;font-size:12px;opacity:.7;text-decoration:underline;cursor:pointer;font-weight:500;}
+
+  /* ---------- Address screen ---------- */
+  #addressScreen{background:var(--paper);}
+  #addressScreen .top{padding:20px 20px 12px;}
+  #addressScreen h2{margin:0 0 4px;font-size:22px;font-weight:700;}
+  #addressScreen p.sub{margin:0;color:#6b5e4f;font-size:14px;font-weight:500;}
+  #locateBtn{margin:16px 20px;background:var(--marigold);color:var(--ink);padding:14px;border-radius:var(--radius);font-weight:700;font-size:15px;}
+  #mapWrap{flex:1;position:relative;margin:0 20px 16px;border-radius:var(--radius);overflow:hidden;border:1px solid var(--line);min-height:280px;}
+  #map{width:100%;height:100%;}
+  #mapPinHint{position:absolute;top:10px;left:10px;right:10px;background:rgba(36,26,22,.85);color:#fff;font-size:12px;padding:8px 12px;border-radius:8px;text-align:center;font-weight:500;}
+  .label-row{display:flex;gap:8px;padding:0 20px;}
+  .label-chip{flex:1;padding:10px;border-radius:10px;border:1px solid var(--line);background:#fff;font-size:13px;font-weight:700;color:#6b5e4f;text-align:center;}
+  .label-chip.active{border-color:var(--teal);color:var(--teal);background:#EAF3F3;}
+  #confirmAddrBtn{margin:16px 20px 24px;background:var(--teal);color:#fff;padding:14px;border-radius:var(--radius);font-weight:700;font-size:15px;}
+  #confirmAddrBtn:disabled{opacity:.4;}
+
+  /* ---------- Main app ---------- */
+  #app{background:var(--paper);}
+  header{position:sticky;top:0;z-index:20;background:var(--paper);border-bottom:1px solid var(--line);padding:14px 18px;display:flex;align-items:center;justify-content:space-between;}
+  header .brand{font-size:19px;font-weight:700;}
+  header .icon-btn{position:relative;width:38px;height:38px;border-radius:50%;background:#fff;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;}
+  #cartCount{position:absolute;top:-4px;right:-4px;background:var(--red);color:#fff;font-size:10px;font-weight:700;width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;}
+  nav.tabs{display:flex;gap:6px;padding:10px 18px;background:var(--paper);position:sticky;top:65px;z-index:19;border-bottom:1px solid var(--line);}
+  nav.tabs button{flex:1;padding:9px;border-radius:999px;font-size:13px;font-weight:700;background:transparent;color:#6b5e4f;}
+  nav.tabs button.active{background:var(--ink);color:var(--paper);}
+
+  .greet-row{display:flex;justify-content:space-between;align-items:center;padding:16px 18px 4px;}
+  .greet-hello{font-family:'Baloo 2',sans-serif;font-size:22px;font-weight:700;}
+  .greet-emoji{font-size:26px;}
+
+  .search-wrap{position:relative;margin:12px 18px 4px;}
+  .search-icon{position:absolute;left:14px;top:50%;transform:translateY(-50%);font-size:14px;opacity:.6;}
+  #searchBar{padding:12px 14px 12px 38px;border-radius:999px;border:1px solid var(--line);background:#fff;font-size:14px;width:100%;font-weight:500;}
+
+  .promo-card{margin:14px 18px;background:linear-gradient(120deg,var(--marigold) 0%,var(--marigold-dark) 100%);border-radius:20px;padding:20px;display:flex;align-items:center;justify-content:space-between;color:var(--ink);overflow:hidden;position:relative;}
+  .promo-tag{font-size:11px;font-weight:800;letter-spacing:.3px;opacity:.75;margin-bottom:4px;}
+  .promo-card h2{margin:0 0 14px;font-size:21px;line-height:1.15;font-weight:700;}
+  .promo-btn{background:var(--ink);color:var(--paper);padding:9px 18px;border-radius:999px;font-weight:700;font-size:13px;}
+  .promo-emoji{font-size:64px;transform:rotate(8deg);flex-shrink:0;}
+
+  .section-title{margin:18px 18px 10px;font-size:17px;font-weight:700;}
+
+  #catBar{display:flex;gap:16px;overflow-x:auto;padding:2px 18px 6px;}
+  .cat-chip{display:flex;flex-direction:column;align-items:center;gap:6px;flex-shrink:0;}
+  .cat-chip .cat-icon{width:56px;height:56px;border-radius:16px;background:var(--paper-2);display:flex;align-items:center;justify-content:center;font-size:24px;border:2px solid transparent;}
+  .cat-chip.active .cat-icon{border-color:var(--marigold);background:#FCEFD1;}
+  .cat-chip span{font-size:11px;font-weight:600;color:#6b5e4f;}
+  .cat-chip.active span{color:var(--ink);font-weight:700;}
+
+  .menu-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:6px 18px 110px;}
+  .food-card{background:#fff;border:1px solid var(--line);border-radius:18px;padding:10px;}
+  .food-card-img{height:84px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:38px;margin-bottom:8px;}
+  .food-card-name{font-weight:700;font-size:14px;margin-bottom:2px;}
+  .food-card-price{font-size:13px;color:#6b5e4f;font-weight:600;}
+
+  #cartBar{position:fixed;bottom:0;left:0;right:0;background:var(--teal);color:#fff;padding:14px 18px;display:none;align-items:center;justify-content:space-between;z-index:30;}
+  #cartBar.show{display:flex;}
+  #cartBar b{font-size:14px;}
+  #cartBar .view{background:var(--marigold);color:var(--ink);padding:9px 18px;border-radius:8px;font-weight:700;font-size:13px;}
+
+  #cartDrawer,#trackDrawer,#detailDrawer{position:fixed;inset:0;background:rgba(0,0,0,.4);display:none;z-index:40;}
+  #cartDrawer.show,#trackDrawer.show,#detailDrawer.show{display:block;}
+  .sheet{position:absolute;bottom:0;left:0;right:0;background:var(--paper);border-radius:20px 20px 0 0;max-height:88vh;overflow-y:auto;padding:20px;}
+  .sheet h3{margin:0 0 14px;}
+  .cart-row{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;padding:12px 0;border-bottom:1px solid var(--line);font-size:14px;}
+  .cart-row-thumb{width:44px;height:44px;border-radius:10px;background:var(--paper-2);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;}
+  .cart-row-mid{flex:1;}
+  .cart-row-name{font-weight:700;}
+  .cart-row-sub{font-size:12px;color:#9a8b76;margin-top:2px;}
+  .cart-row-remove{font-size:11px;color:var(--red);font-weight:700;margin-top:4px;cursor:pointer;}
+  .cart-row-price{font-weight:700;font-size:14px;}
+  .promo-input{width:100%;padding:12px 14px;border:1px dashed var(--line);border-radius:12px;background:#fff;font-size:13px;margin:14px 0;font-weight:500;}
+  .sum-row{display:flex;justify-content:space-between;font-size:14px;padding:4px 0;color:#6b5e4f;font-weight:500;}
+  .total-row{display:flex;justify-content:space-between;font-weight:700;padding:12px 0;font-size:17px;border-top:1px solid var(--line);margin-top:6px;}
+  #placeOrderBtn{width:100%;background:var(--marigold);color:var(--ink);padding:14px;border-radius:12px;font-weight:700;font-size:15px;margin-top:8px;}
+  .close-x{position:absolute;top:16px;right:16px;background:#fff;border:1px solid var(--line);width:32px;height:32px;border-radius:50%;font-size:16px;z-index:5;}
+
+  /* ---------- Item detail ---------- */
+  .detail-hero{height:180px;border-radius:18px;display:flex;align-items:center;justify-content:center;font-size:76px;margin-bottom:16px;}
+  .detail-name{font-size:23px;font-weight:700;margin:0 0 6px;}
+  .detail-desc{font-size:13px;color:#6b5e4f;margin:0 0 16px;font-weight:500;}
+  .detail-label{font-weight:700;font-size:14px;margin:14px 0 8px;}
+  .size-row,.addon-row{display:flex;gap:8px;flex-wrap:wrap;}
+  .size-chip{padding:9px 16px;border-radius:10px;border:1px solid var(--line);background:#fff;font-weight:700;font-size:13px;color:#6b5e4f;}
+  .size-chip.active{background:var(--marigold);border-color:var(--marigold);color:var(--ink);}
+  .addon-item{display:flex;justify-content:space-between;align-items:center;width:100%;border:1px solid var(--line);border-radius:12px;padding:10px 14px;margin-bottom:8px;background:#fff;}
+  .addon-name{font-weight:600;font-size:13px;}
+  .addon-price{font-size:12px;color:#9a8b76;}
+  .addon-toggle{width:26px;height:26px;border-radius:8px;background:var(--paper-2);font-weight:700;}
+  .addon-toggle.on{background:var(--teal);color:#fff;}
+  .detail-footer{display:flex;gap:12px;align-items:center;margin-top:20px;position:sticky;bottom:0;background:var(--paper);padding-top:10px;}
+  .qty-box{display:flex;align-items:center;gap:12px;background:var(--paper-2);border-radius:12px;padding:8px 12px;}
+  .qty-box button{width:26px;height:26px;border-radius:8px;background:#fff;font-weight:700;font-size:15px;}
+  #detailAddBtn{flex:1;background:var(--teal);color:#fff;padding:14px;border-radius:12px;font-weight:700;font-size:14px;}
+
+  /* ---------- Orders tab ---------- */
+  #ordersList{padding:14px 18px 40px;}
+  .order-card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:14px;}
+  .order-card .oid{font-size:12px;color:#6b5e4f;font-weight:600;}
+  .status-pill{display:inline-block;padding:4px 12px;border-radius:999px;font-size:12px;font-weight:700;margin-top:6px;}
+  .status-placed{background:#FDECC8;color:#8A5A00;}
+  .status-confirmed{background:#DCEEFB;color:#0B5583;}
+  .status-preparing{background:#FDECC8;color:#8A5A00;}
+  .status-out_for_delivery{background:#E1EFE1;color:#1E5C1E;}
+  .status-delivered{background:#E7E7E7;color:#444;}
+  .status-cancelled{background:#FBDCDC;color:#8A1E1E;}
+  .track-steps{display:flex;justify-content:space-between;margin:16px 0 6px;position:relative;}
+  .track-steps::before{content:"";position:absolute;top:9px;left:20px;right:20px;height:2px;background:var(--line);}
+  .step{display:flex;flex-direction:column;align-items:center;gap:6px;font-size:10px;color:#9a8b76;flex:1;z-index:1;text-align:center;font-weight:600;}
+  .step .dot{width:20px;height:20px;border-radius:50%;background:var(--line);border:2px solid var(--paper);}
+  .step.done .dot{background:var(--teal);}
+  .step.done{color:var(--teal);font-weight:700;}
+  .eta{margin-top:10px;font-size:13px;color:var(--ink);background:var(--paper-2);padding:8px 12px;border-radius:8px;font-weight:600;}
+
+  .empty-state{text-align:center;padding:60px 20px;color:#9a8b76;font-weight:500;}
+</style>
+</head>
+<body>
+
+<!-- AUTH -->
+<div id="authScreen" class="screen active">
+  <div>
+    <h1 class="brand">Bhukkadganj</h1>
+    <p class="tag">Bhookh lagi? Order kar de.</p>
+    <button class="google-btn" onclick="signInWithGoogle()">
+      <svg viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.9 32.7 29.4 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.1 8 3l6-6C34 5.1 29.3 3 24 3 12.4 3 3 12.4 3 24s9.4 21 21 21 21-9.4 21-21c0-1.3-.1-2.7-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.5 15.9 18.9 13 24 13c3.1 0 5.8 1.1 8 3l6-6C34 5.1 29.3 3 24 3 16.3 3 9.7 7.4 6.3 14.7z"/><path fill="#4CAF50" d="M24 45c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 36.6 26.7 37.5 24 37.5c-5.3 0-9.8-3.4-11.4-8.1l-6.5 5C9.6 40.5 16.2 45 24 45z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-1 3-3.1 5.5-5.9 7.1l6.2 5.2C39.4 37.2 43 31.5 43 24c0-1.3-.1-2.7-.4-3.5z"/></svg>
+      Continue with Google
+    </button>
+    <div id="testBypass" onclick="testBypassLogin()">Skip login (test mode)</div>
+  </div>
+  <div class="foot">Bhukkadganj &middot; Sewak Park, Dwarka Mor</div>
+</div>
+
+<!-- ADDRESS CAPTURE -->
+<div id="addressScreen" class="screen">
+  <div class="top">
+    <h2>Delivery location</h2>
+    <p class="sub">Pin drag karke apna exact ghar/office confirm karo.</p>
+  </div>
+  <button id="locateBtn" onclick="locateMe()">📍 Use my current location</button>
+  <div id="mapWrap">
+    <div id="mapPinHint">Map ko drag karke pin ko sahi jagah le jao</div>
+    <div id="map"></div>
+  </div>
+  <div class="label-row">
+    <div class="label-chip active" data-label="Home" onclick="setAddrLabel('Home',this)">Home</div>
+    <div class="label-chip" data-label="Work" onclick="setAddrLabel('Work',this)">Work</div>
+    <div class="label-chip" data-label="Other" onclick="setAddrLabel('Other',this)">Other</div>
+  </div>
+  <button id="confirmAddrBtn" disabled onclick="confirmAddress()">Confirm & continue</button>
+</div>
+
+<!-- MAIN APP -->
+<div id="app" class="screen">
+  <header>
+    <div class="brand">Bhukkadganj</div>
+    <button class="icon-btn" onclick="openCart()">🛒<span id="cartCount" style="display:none">0</span></button>
+  </header>
+  <nav class="tabs">
+    <button id="tabMenuBtn" class="active" onclick="showTab('menu')">Menu</button>
+    <button id="tabOrdersBtn" onclick="showTab('orders')">My Orders</button>
+  </nav>
+
+  <div id="menuTab">
+    <div class="greet-row">
+      <div class="greet-hello">Hello, <span id="greetName">there</span>!</div>
+      <div class="greet-emoji">👋</div>
+    </div>
+    <div class="search-wrap">
+      <span class="search-icon">🔍</span>
+      <input id="searchBar" placeholder="Search for delicious food...">
+    </div>
+    <div class="promo-card">
+      <div>
+        <div class="promo-tag">SUPER DELICIOUS</div>
+        <h2>Fresh Food,<br>Delivered Fast</h2>
+        <button class="promo-btn" onclick="scrollToMenu()">Order Now</button>
+      </div>
+      <div class="promo-emoji">🍔</div>
+    </div>
+    <h3 class="section-title">Popular Categories</h3>
+    <div id="catBar"></div>
+    <h3 class="section-title" id="menuAnchor">Popular Now</h3>
+    <div id="menuList" class="menu-grid"></div>
+  </div>
+
+  <div id="ordersTab" style="display:none">
+    <div id="ordersList"></div>
+  </div>
+
+  <div id="cartBar">
+    <b><span id="cartItemCount">0</span> items &middot; ₹<span id="cartTotal">0</span></b>
+    <div class="view" onclick="openCart()">View cart</div>
+  </div>
+</div>
+
+<!-- ITEM DETAIL -->
+<div id="detailDrawer">
+  <div class="sheet">
+    <button class="close-x" onclick="closeItemDetail()">✕</button>
+    <div id="detailHero" class="detail-hero"></div>
+    <div class="detail-name" id="detailName"></div>
+    <p class="detail-desc" id="detailDesc"></p>
+    <div id="detailSizeSection"></div>
+    <div id="detailAddonSection"></div>
+    <div class="detail-footer">
+      <div class="qty-box">
+        <button onclick="detailQty(-1)">−</button>
+        <b id="detailQty">1</b>
+        <button onclick="detailQty(1)">+</button>
+      </div>
+      <button id="detailAddBtn" onclick="addDetailToCart()">Add to Cart · ₹0</button>
+    </div>
+  </div>
+</div>
+
+<!-- CART DRAWER -->
+<div id="cartDrawer">
+  <div class="sheet">
+    <button class="close-x" onclick="closeCart()">✕</button>
+    <h3>My Cart</h3>
+    <div id="cartRows"></div>
+    <input class="promo-input" placeholder="🏷️ Promo Code">
+    <div class="sum-row"><span>Subtotal</span><span id="sumSubtotal">₹0</span></div>
+    <div class="sum-row"><span>Delivery Fee</span><span id="sumDelivery">₹0</span></div>
+    <div class="total-row"><span>Total</span><span>₹<span id="cartTotal2">0</span></span></div>
+    <button id="placeOrderBtn" onclick="placeOrder()">Checkout</button>
+  </div>
+</div>
+
+<script>
+/* ---------------- Firebase init ----------------
+   Wrapped in try/catch: some previews/webviews (including the in-app file
+   preview) block the gstatic.com CDN, which would otherwise crash this
+   entire script the moment it runs and break even Test Mode. If Firebase
+   fails to load, firebaseReady stays false and everything that needs it
+   (real Google login, saving addresses, placing orders, order tracking)
+   shows a clear message instead of silently failing — Test Mode's menu/
+   cart/item-detail browsing still works either way. */
+let firebaseReady = false;
+let auth, db;
+try{
+  firebase.initializeApp(FIREBASE_CONFIG);
+  auth = firebase.auth();
+  db = firebase.firestore();
+  firebaseReady = true;
+} catch(e){
+  console.warn('Firebase did not load in this environment:', e);
+}
+let currentUser = null;
+let customerDoc = null;
+
+/* ---------------- Menu data ----------------
+   Edit this array to match your actual menu.
+   sizes: optional [{label, price}] — first size is default
+   addons: optional [{name, price}] — customer can toggle each on/off
+*/
+const MENU = [
+  {id:'m1', cat:'Starters', name:'Paneer Tikka', desc:'Char-grilled cottage cheese with smoky spices.', veg:true, emoji:'🧀', bg:'rgba(227,160,8,.16)',
+    sizes:[{label:'Half',price:180},{label:'Full',price:320}],
+    addons:[{name:'Extra Chutney',price:20},{name:'Extra Paneer',price:60}]},
+  {id:'m2', cat:'Starters', name:'Chicken Seekh Kebab', desc:'Minced chicken skewers roasted over coal.', veg:false, emoji:'🍢', bg:'rgba(15,92,92,.12)',
+    sizes:[{label:'Half',price:220},{label:'Full',price:400}],
+    addons:[{name:'Extra Mint Chutney',price:20}]},
+  {id:'m3', cat:'Main Course', name:'Butter Chicken', desc:'Creamy tomato gravy, slow-cooked chicken.', veg:false, emoji:'🍛', bg:'rgba(227,160,8,.16)',
+    sizes:[{label:'Half',price:260},{label:'Full',price:460}],
+    addons:[{name:'Extra Butter',price:30},{name:'Extra Gravy',price:40}]},
+  {id:'m4', cat:'Main Course', name:'Dal Makhani', desc:'Black lentils simmered overnight with butter.', veg:true, emoji:'🍲', bg:'rgba(15,92,92,.12)',
+    addons:[{name:'Extra Butter',price:20}]},
+  {id:'m5', cat:'Main Course', name:'Veg Biryani', desc:'Fragrant basmati rice with garden vegetables.', veg:true, emoji:'🍚', bg:'rgba(227,160,8,.16)',
+    sizes:[{label:'Half',price:190},{label:'Full',price:340}],
+    addons:[{name:'Raita',price:30},{name:'Extra Gravy',price:30}]},
+  {id:'m6', cat:'Breads', name:'Butter Naan', desc:'Soft tandoor-baked bread brushed with butter.', veg:true, emoji:'🫓', bg:'rgba(15,92,92,.12)'},
+  {id:'m7', cat:'Beverages', name:'Masala Chai', desc:'Classic spiced milk tea.', veg:true, emoji:'🍵', bg:'rgba(227,160,8,.16)'},
+  {id:'m8', cat:'Beverages', name:'Cold Coffee', desc:'Chilled and frothy, topped with cream.', veg:true, emoji:'🥤', bg:'rgba(15,92,92,.12)',
+    sizes:[{label:'Regular',price:90},{label:'Large',price:130}]},
+];
+const CAT_ICONS = {'Starters':'🍢','Main Course':'🍛','Breads':'🫓','Beverages':'🥤'};
+
+let cart = {}; // { cartKey: {itemId, name, size, addons:[names], unitPrice, qty} }
+let pendingAddress = null;
+let map, marker;
+
+/* ---------------- Auth ---------------- */
+function signInWithGoogle(){
+  if(!firebaseReady){ alert('Firebase load nahi hua is preview me. Real FIREBASE_CONFIG daal ke, aur is file ko ek real browser me khol ke try karo.'); return; }
+  const provider = new firebase.auth.GoogleAuthProvider();
+  auth.signInWithPopup(provider).catch(err=>alert('Login failed: '+err.message));
+}
+
+/* TEST MODE — fully local, does NOT touch Firestore at all, so it works
+   even before you've filled in a real FIREBASE_CONFIG. Lets you preview
+   the menu, cart, item detail and order-tracking UI end to end.
+   Placing an order still writes to Firestore (placeOrder()), so that one
+   step needs a real FIREBASE_CONFIG + Firestore rules to actually save —
+   everything else (browsing, cart, address screen) works without it.
+   Remove the button + this function before going live. */
+function testBypassLogin(){
+  currentUser = {uid: 'test-user-1', displayName: 'Test User', email: 'test@example.com'};
+  customerDoc = {
+    name: 'Test User', email: 'test@example.com', phone: '9999999999',
+    addresses: [{lat: 28.6139, lng: 77.2090, label: 'Home', id: 'test-addr-1'}]
+  };
+  pendingAddress = customerDoc.addresses[0];
+  enterApp();
+}
+
+if(firebaseReady){
+  auth.onAuthStateChanged(async (user)=>{
+    if(!user){ showScreen('authScreen'); return; }
+    currentUser = user;
+    const snap = await db.collection('customers').doc(user.uid).get();
+    if(snap.exists){
+      customerDoc = snap.data();
+      enterApp();
+    } else {
+      customerDoc = {name:user.displayName, email:user.email, addresses:[]};
+      await db.collection('customers').doc(user.uid).set(customerDoc);
+      showScreen('addressScreen');
+      initMapIfNeeded();
+    }
+  });
+} else {
+  showScreen('authScreen');
+}
+
+function enterApp(){
+  showScreen('app');
+  document.getElementById('greetName').textContent = (customerDoc.name||'there').split(' ')[0];
+  renderCategories();
+  renderMenu();
+  listenToMyOrders();
+}
+
+function showScreen(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+function scrollToMenu(){ document.getElementById('menuAnchor').scrollIntoView({behavior:'smooth'}); }
+
+/* ---------------- Address / Map ---------------- */
+let selectedLabel = 'Home';
+function setAddrLabel(label, el){
+  selectedLabel = label;
+  document.querySelectorAll('.label-chip').forEach(c=>c.classList.remove('active'));
+  el.classList.add('active');
+}
+
+function initMapIfNeeded(){
+  if(window.__mapsLoaded){ createMap(28.6139,77.2090); return; }
+  const s = document.createElement('script');
+  s.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}`;
+  s.onload = ()=>{ window.__mapsLoaded = true; createMap(28.6139,77.2090); };
+  document.head.appendChild(s);
+}
+
+function createMap(lat,lng){
+  map = new google.maps.Map(document.getElementById('map'), {
+    center:{lat,lng}, zoom:16, disableDefaultUI:true, zoomControl:true
+  });
+  marker = new google.maps.Marker({position:{lat,lng}, map, draggable:true});
+  document.getElementById('confirmAddrBtn').disabled = false;
+}
+
+function locateMe(){
+  if(!navigator.geolocation){ alert('Geolocation not supported on this device.'); return; }
+  navigator.geolocation.getCurrentPosition((pos)=>{
+    const {latitude:lat, longitude:lng} = pos.coords;
+    if(map){ map.setCenter({lat,lng}); map.setZoom(17); marker.setPosition({lat,lng}); }
+    else createMap(lat,lng);
+  }, (err)=>{
+    alert('Location access denied. Drag the pin on the map manually to set your location.');
+  }, {enableHighAccuracy:true, timeout:10000});
+}
+
+async function confirmAddress(){
+  const pos = marker.getPosition();
+  const addr = {lat: pos.lat(), lng: pos.lng(), label: selectedLabel, id: Date.now().toString()};
+  if(firebaseReady){
+    try{
+      await db.collection('customers').doc(currentUser.uid).update({
+        addresses: firebase.firestore.FieldValue.arrayUnion(addr)
+      });
+    } catch(err){
+      alert('Address Firestore me save nahi hui — FIREBASE_CONFIG check karo.\n\n'+err.message);
+      return;
+    }
+  }
+  customerDoc.addresses = customerDoc.addresses || [];
+  customerDoc.addresses.push(addr);
+  pendingAddress = addr;
+  enterApp();
+}
+
+/* ---------------- Categories & grid ---------------- */
+let activeCat = null;
+function renderCategories(){
+  const cats = [...new Set(MENU.map(m=>m.cat))];
+  document.getElementById('catBar').innerHTML = cats.map((c,i)=>`
+    <div class="cat-chip ${i===0?'active':''}" data-cat="${c}" onclick="filterCat('${c}',this)">
+      <div class="cat-icon">${CAT_ICONS[c]||'🍽️'}</div>
+      <span>${c}</span>
+    </div>`).join('');
+  activeCat = cats[0];
+}
+function filterCat(cat, el){
+  activeCat = cat;
+  document.querySelectorAll('.cat-chip').forEach(b=>b.classList.remove('active'));
+  el.classList.add('active');
+  renderMenu();
+}
+function renderMenu(){
+  const q = document.getElementById('searchBar').value.toLowerCase();
+  let items = MENU;
+  if(q) items = items.filter(m=>m.name.toLowerCase().includes(q));
+  else if(activeCat) items = items.filter(m=>m.cat===activeCat);
+  document.getElementById('menuList').innerHTML = items.map(m=>{
+    const priceLabel = m.sizes ? `From ₹${m.sizes[0].price}` : `₹${m.price !== undefined ? m.price : (m.sizes ? m.sizes[0].price : '')}`;
+    return `
+    <div class="food-card" onclick="openItemDetail('${m.id}')">
+      <div class="food-card-img" style="background:${m.bg}">${m.emoji}</div>
+      <div class="food-card-name">${m.name}</div>
+      <div class="food-card-price">${priceLabel}</div>
+    </div>`;
+  }).join('') || `<div class="empty-state" style="grid-column:1/-1">Koi dish nahi mili</div>`;
+}
+document.getElementById('searchBar').addEventListener('input', ()=>renderMenu());
+
+/* ---------------- Item detail ---------------- */
+let detailItem = null, detailSize = null, detailAddons = [], detailQtyVal = 1;
+
+function openItemDetail(id){
+  detailItem = MENU.find(m=>m.id===id);
+  detailSize = detailItem.sizes ? detailItem.sizes[0] : null;
+  detailAddons = [];
+  detailQtyVal = 1;
+
+  document.getElementById('detailHero').style.background = detailItem.bg;
+  document.getElementById('detailHero').textContent = detailItem.emoji;
+  document.getElementById('detailName').textContent = detailItem.name;
+  document.getElementById('detailDesc').textContent = detailItem.desc || '';
+  document.getElementById('detailQty').textContent = detailQtyVal;
+
+  const sizeSection = document.getElementById('detailSizeSection');
+  if(detailItem.sizes){
+    sizeSection.innerHTML = `<div class="detail-label">Choose Size</div><div class="size-row" id="sizeRow"></div>`;
+    renderSizeRow();
+  } else sizeSection.innerHTML = '';
+
+  const addonSection = document.getElementById('detailAddonSection');
+  if(detailItem.addons){
+    addonSection.innerHTML = `<div class="detail-label">Add Toppings</div><div id="addonRow"></div>`;
+    renderAddonRow();
+  } else addonSection.innerHTML = '';
+
+  updateDetailBtn();
+  document.getElementById('detailDrawer').classList.add('show');
+}
+function closeItemDetail(){ document.getElementById('detailDrawer').classList.remove('show'); }
+
+function renderSizeRow(){
+  document.getElementById('sizeRow').innerHTML = detailItem.sizes.map(s=>`
+    <div class="size-chip ${detailSize.label===s.label?'active':''}" onclick="pickSize('${s.label}')">${s.label}</div>
+  `).join('');
+}
+function pickSize(label){
+  detailSize = detailItem.sizes.find(s=>s.label===label);
+  renderSizeRow();
+  updateDetailBtn();
+}
+function renderAddonRow(){
+  document.getElementById('addonRow').innerHTML = detailItem.addons.map(a=>{
+    const on = detailAddons.includes(a.name);
+    return `<div class="addon-item">
+      <div><div class="addon-name">${a.name}</div><div class="addon-price">+₹${a.price}</div></div>
+      <button class="addon-toggle ${on?'on':''}" onclick="toggleAddon('${a.name}')">${on?'✓':'+'}</button>
+    </div>`;
+  }).join('');
+}
+function toggleAddon(name){
+  if(detailAddons.includes(name)) detailAddons = detailAddons.filter(n=>n!==name);
+  else detailAddons.push(name);
+  renderAddonRow();
+  updateDetailBtn();
+}
+function detailQty(delta){
+  detailQtyVal = Math.max(1, detailQtyVal + delta);
+  document.getElementById('detailQty').textContent = detailQtyVal;
+  updateDetailBtn();
+}
+function computeUnitPrice(){
+  let price = detailSize ? detailSize.price : detailItem.price;
+  detailAddons.forEach(name=>{
+    const a = detailItem.addons.find(x=>x.name===name);
+    if(a) price += a.price;
+  });
+  return price;
+}
+function updateDetailBtn(){
+  const total = computeUnitPrice() * detailQtyVal;
+  document.getElementById('detailAddBtn').textContent = `Add to Cart · ₹${total}`;
+}
+function addDetailToCart(){
+  const unitPrice = computeUnitPrice();
+  const key = detailItem.id + '|' + (detailSize?detailSize.label:'') + '|' + [...detailAddons].sort().join(',');
+  if(cart[key]){
+    cart[key].qty += detailQtyVal;
+  } else {
+    cart[key] = {
+      itemId: detailItem.id, name: detailItem.name,
+      size: detailSize ? detailSize.label : '',
+      addons: [...detailAddons], unitPrice, qty: detailQtyVal
+    };
+  }
+  updateCartBar();
+  closeItemDetail();
+}
+
+/* ---------------- Cart ---------------- */
+function updateCartBar(){
+  const entries = Object.values(cart);
+  const count = entries.reduce((a,e)=>a+e.qty,0);
+  const subtotal = entries.reduce((s,e)=>s+e.unitPrice*e.qty,0);
+  document.getElementById('cartItemCount').textContent = count;
+  document.getElementById('cartTotal').textContent = subtotal;
+  document.getElementById('cartBar').classList.toggle('show', count>0);
+  const badge = document.getElementById('cartCount');
+  if(count>0){ badge.style.display='flex'; badge.textContent=count; } else badge.style.display='none';
+}
+
+function cartSubtotal(){
+  return Object.values(cart).reduce((s,e)=>s+e.unitPrice*e.qty,0);
+}
+
+function openCart(){
+  const entries = Object.entries(cart);
+  document.getElementById('cartRows').innerHTML = entries.map(([key,e])=>{
+    const sub = [e.size, ...e.addons].filter(Boolean).join(', ');
+    const item = MENU.find(m=>m.id===e.itemId);
+    return `<div class="cart-row">
+      <div class="cart-row-thumb">${item?item.emoji:'🍽️'}</div>
+      <div class="cart-row-mid">
+        <div class="cart-row-name">${e.name} × ${e.qty}</div>
+        ${sub ? `<div class="cart-row-sub">${sub}</div>` : ''}
+        <div class="cart-row-remove" onclick="removeCartItem('${key}')">Remove</div>
+      </div>
+      <div class="cart-row-price">₹${e.unitPrice*e.qty}</div>
+    </div>`;
+  }).join('') || `<div class="empty-state">Cart khali hai</div>`;
+
+  const subtotal = cartSubtotal();
+  const delivery = entries.length ? DELIVERY_FEE : 0;
+  document.getElementById('sumSubtotal').textContent = '₹'+subtotal;
+  document.getElementById('sumDelivery').textContent = '₹'+delivery;
+  document.getElementById('cartTotal2').textContent = subtotal+delivery;
+  document.getElementById('cartDrawer').classList.add('show');
+}
+function removeCartItem(key){ delete cart[key]; updateCartBar(); openCart(); }
+function closeCart(){ document.getElementById('cartDrawer').classList.remove('show'); }
+
+/* ---------------- Tabs ---------------- */
+function showTab(tab){
+  document.getElementById('tabMenuBtn').classList.toggle('active', tab==='menu');
+  document.getElementById('tabOrdersBtn').classList.toggle('active', tab==='orders');
+  document.getElementById('menuTab').style.display = tab==='menu' ? 'block':'none';
+  document.getElementById('ordersTab').style.display = tab==='orders' ? 'block':'none';
+}
+
+/* ---------------- Orders ---------------- */
+async function placeOrder(){
+  const entries = Object.values(cart);
+  if(entries.length===0){ alert('Cart khali hai'); return; }
+  const items = entries.map(e=>({name:e.name, size:e.size, addons:e.addons, qty:e.qty, price:e.unitPrice}));
+  const subtotal = cartSubtotal();
+  const deliveryFee = DELIVERY_FEE;
+  const total = subtotal + deliveryFee;
+  const address = (customerDoc.addresses && customerDoc.addresses[customerDoc.addresses.length-1]) || pendingAddress;
+  if(!address){ alert('Pehle delivery address set karo.'); return; }
+
+  try{
+    await db.collection('orders').add({
+      customerUid: currentUser.uid,
+      customerName: customerDoc.name || currentUser.displayName,
+      phone: customerDoc.phone || '',
+      email: currentUser.email,
+      address,
+      items,
+      subtotal, deliveryFee, total,
+      status: 'placed',
+      eta: '',
+      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+  } catch(err){
+    alert('Order Firestore me save nahi hua — FIREBASE_CONFIG abhi placeholder hai ya rules block kar rahe hain.\n\n'+err.message);
+    return;
+  }
+
+  cart = {};
+  updateCartBar();
+  closeCart();
+  showTab('orders');
+  alert('Order place ho gaya! Track karo "My Orders" me.');
+}
+
+function listenToMyOrders(){
+  if(!firebaseReady){
+    document.getElementById('ordersList').innerHTML = `<div class="empty-state">Test mode me order tracking Firestore ke bina nahi chalta. Real FIREBASE_CONFIG daal ke real browser me kholo.</div>`;
+    return;
+  }
+  db.collection('orders').where('customerUid','==',currentUser.uid)
+    .orderBy('createdAt','desc')
+    .onSnapshot(snap=>{
+      const orders = snap.docs.map(d=>({id:d.id, ...d.data()}));
+      renderOrders(orders);
+    }, err=>console.error(err));
+}
+
+const STEPS = [
+  {key:'placed', label:'Placed'},
+  {key:'confirmed', label:'Confirmed'},
+  {key:'preparing', label:'Preparing'},
+  {key:'out_for_delivery', label:'On the way'},
+  {key:'delivered', label:'Delivered'}
+];
+function renderOrders(orders){
+  if(orders.length===0){
+    document.getElementById('ordersList').innerHTML = `<div class="empty-state">Abhi tak koi order nahi.</div>`;
+    return;
+  }
+  document.getElementById('ordersList').innerHTML = orders.map(o=>{
+    const stepIdx = STEPS.findIndex(s=>s.key===o.status);
+    const cancelled = o.status === 'cancelled';
+    const stepsHtml = cancelled ? '' : `
+      <div class="track-steps">
+        ${STEPS.map((s,i)=>`
+          <div class="step ${i<=stepIdx?'done':''}">
+            <div class="dot"></div>
+            <span>${s.label}</span>
+          </div>`).join('')}
+      </div>
+      ${o.eta ? `<div class="eta">Estimated: ${o.eta}</div>` : ''}
+    `;
+    const itemsText = o.items.map(i=>`${i.name}${i.size?' ('+i.size+')':''} × ${i.qty}`).join(', ');
+    return `
+      <div class="order-card">
+        <div class="oid">Order #${o.id.slice(-6).toUpperCase()}</div>
+        <div>${itemsText}</div>
+        <div><b>₹${o.total}</b></div>
+        <span class="status-pill status-${o.status}">${cancelled ? 'Cancelled' : STEPS[stepIdx]?.label || o.status}</span>
+        ${stepsHtml}
+      </div>
+    `;
+  }).join('');
+}
+</script>
+</body>
+</html>
