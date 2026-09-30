@@ -439,7 +439,7 @@ function setAddrLabel(label, el){
 function initMapIfNeeded(){
   if(window.__mapsLoaded){ createMap(28.6139,77.2090); return; }
   const s = document.createElement('script');
-  s.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}`;
+  s.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&loading=async`;
   s.onload = ()=>{ window.__mapsLoaded = true; createMap(28.6139,77.2090); };
   s.onerror = ()=>{
     document.getElementById('mapWrap').innerHTML = '<div style="padding:20px;font-size:13px;text-align:center;color:#8A1E1E">Google Maps load nahi hua. Cloud Console me "Maps JavaScript API" enable hai aur billing on hai check karo.</div>';
