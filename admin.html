@@ -134,10 +134,36 @@
   .mini-row button{background:#fff;border:1px solid #F1C4C1;color:var(--red);border-radius:8px;width:34px;font-weight:800;}
   .add-mini{background:var(--paper-2);color:var(--teal-dark);padding:7px 12px;border-radius:8px;font-size:12px;font-weight:700;}
   .modal-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:16px;}
+  .ic{width:1.15em;height:1.15em;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;vertical-align:-.2em;flex-shrink:0;}
+  .menu-thumb .ic{width:24px;height:24px;color:var(--teal);}
+  .photo-box{display:flex;gap:14px;align-items:center;}
+  .photo-prev{width:84px;height:84px;border-radius:12px;background:var(--paper-2);display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0;}
+  .photo-prev img{width:100%;height:100%;object-fit:cover;}
+  .photo-prev .ic{width:38px;height:38px;color:var(--teal);}
+  .up-btn{display:inline-flex;align-items:center;gap:6px;cursor:pointer;margin:0 6px 6px 0;}
+  .hint{font-size:11px;color:#6b5e4f;}
+  .icon-pick{display:flex;gap:8px;flex-wrap:wrap;}
+  .icon-pick button{width:42px;height:42px;border-radius:10px;border:1px solid var(--line);background:#fff;color:var(--ink);display:flex;align-items:center;justify-content:center;}
+  .icon-pick button.sel{border-color:var(--teal);background:var(--paper-2);color:var(--teal);}
+  .icon-pick .ic{width:22px;height:22px;}
+  .addr-full{line-height:1.5;margin:4px 0;}
   #formError{color:var(--red);font-size:13px;font-weight:600;margin-top:8px;display:none;}
 </style>
 </head>
 <body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 21s-7-6.2-7-11a7 7 0 0114 0c0 4.8-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></symbol>
+<symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+<symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 16V5M7 9l5-5 5 5M4 16v4h16v-4"/></symbol>
+<symbol id="i-bowl" viewBox="0 0 24 24"><path d="M3 11h18a9 9 0 01-18 0z"/><path d="M8 7c0-1.5 1-1.5 1-3M12 7c0-1.5 1-1.5 1-3M16 7c0-1.5 1-1.5 1-3"/></symbol>
+<symbol id="i-skewer" viewBox="0 0 24 24"><path d="M4 20L20 4"/><circle cx="9" cy="15" r="2.4"/><circle cx="13" cy="11" r="2.4"/><circle cx="17" cy="7" r="2.4"/></symbol>
+<symbol id="i-pot" viewBox="0 0 24 24"><path d="M4 10h16v6a4 4 0 01-4 4H8a4 4 0 01-4-4zM2 10h20M9 6.5h6"/></symbol>
+<symbol id="i-bread" viewBox="0 0 24 24"><path d="M4 15c0-5 3.5-9 8-9s8 4 8 9c0 1.5-.8 2.5-2 2.5H6c-1.2 0-2-1-2-2.5z"/><path d="M9 11l1 3M13 10l1 3"/></symbol>
+<symbol id="i-cup" viewBox="0 0 24 24"><path d="M5 9h11v6a5 5 0 01-5 5h-1a5 5 0 01-5-5zM16 11h2a2.5 2.5 0 010 5h-2M8 3v3M12 3v3"/></symbol>
+<symbol id="i-glass" viewBox="0 0 24 24"><path d="M6 4h12l-1.6 16H7.6zM6.6 10h10.8M14 4l2-3"/></symbol>
+<symbol id="i-utensils" viewBox="0 0 24 24"><path d="M7 3v8M5 3v5a2 2 0 004 0V3M7 11v10M17 21V3c-2.5 1.5-3.5 4-3.5 7h3.5"/></symbol>
+<symbol id="i-burger" viewBox="0 0 24 24"><path d="M4 11a8 6 0 0116 0zM3 15h18M5 18.5c0 1 1 1.5 2 1.5h10c1 0 2-.5 2-1.5V17H5z"/></symbol>
+</defs></svg>
 
 <div id="pinScreen">
   <h1>Bhukkadganj Admin</h1>
@@ -190,9 +216,19 @@
     <div class="fld"><label>Dish name *</label><input type="text" id="fName" placeholder="e.g. Paneer Tikka"></div>
     <div class="fld-row">
       <div class="fld"><label>Category *</label><input type="text" id="fCat" list="catList" placeholder="e.g. Starters"><datalist id="catList"></datalist></div>
-      <div class="fld"><label>Emoji</label><input type="text" id="fEmoji" maxlength="4" placeholder="🍛"></div>
+      
     </div>
-    <div class="fld"><label>Photo URL (optional — emoji ki jagah dikhegi)</label><input type="url" id="fImg" placeholder="https://..."></div>
+    <div class="fld"><label>Dish photo</label>
+      <div class="photo-box">
+        <div class="photo-prev" id="photoPrev"></div>
+        <div>
+          <label class="btn-ghost up-btn"><svg class="ic " aria-hidden="true"><use href="#i-upload"/></svg> Upload photo<input type="file" id="fFile" accept="image/*" hidden onchange="onPhoto(this)"></label>
+          <button type="button" class="btn-danger" onclick="clearPhoto()">Remove</button>
+          <div class="hint">Photo apne aap chhoti (compress) hokar save hoti hai.</div>
+        </div>
+      </div>
+    </div>
+    <div class="fld"><label>Icon (photo na ho tab customer ko dikhega)</label><div class="icon-pick" id="iconPick"></div></div>
     <div class="fld"><label>Description</label><textarea id="fDesc" placeholder="Short line about the dish"></textarea></div>
     <div class="fld-row">
       <div class="fld"><label>Serves</label>
@@ -252,23 +288,23 @@ let db;
    immediately. DEFAULT_MENU is only used by the one-click "Import default menu"
    button the first time, so you don't have to retype the starting dishes. */
 const DEFAULT_MENU = [
-  {id:'m1', cat:'Starters', name:'Paneer Tikka', desc:'Char-grilled cottage cheese with smoky spices.', veg:true, emoji:'🧀', bg:'rgba(124,179,66,.18)', serves:'1-2',
+  {id:'m1', cat:'Starters', name:'Paneer Tikka', desc:'Char-grilled cottage cheese with smoky spices.', veg:true, icon:'bowl', bg:'rgba(124,179,66,.18)', serves:'1-2',
     sizes:[{label:'Half',price:180},{label:'Full',price:320}],
     addons:[{name:'Extra Chutney',price:20},{name:'Extra Paneer',price:60}]},
-  {id:'m2', cat:'Starters', name:'Chicken Seekh Kebab', desc:'Minced chicken skewers roasted over coal.', veg:false, emoji:'🍢', bg:'rgba(85,139,47,.14)', serves:'1-2',
+  {id:'m2', cat:'Starters', name:'Chicken Seekh Kebab', desc:'Minced chicken skewers roasted over coal.', veg:false, icon:'skewer', bg:'rgba(85,139,47,.14)', serves:'1-2',
     sizes:[{label:'Half',price:220},{label:'Full',price:400}],
     addons:[{name:'Extra Mint Chutney',price:20}]},
-  {id:'m3', cat:'Main Course', name:'Butter Chicken', desc:'Creamy tomato gravy, slow-cooked chicken.', veg:false, emoji:'🍛', bg:'rgba(124,179,66,.18)', serves:'2-3',
+  {id:'m3', cat:'Main Course', name:'Butter Chicken', desc:'Creamy tomato gravy, slow-cooked chicken.', veg:false, icon:'pot', bg:'rgba(124,179,66,.18)', serves:'2-3',
     sizes:[{label:'Half',price:260},{label:'Full',price:460}],
     addons:[{name:'Extra Butter',price:30},{name:'Extra Gravy',price:40}]},
-  {id:'m4', cat:'Main Course', name:'Dal Makhani', desc:'Black lentils simmered overnight with butter.', veg:true, emoji:'🍲', bg:'rgba(85,139,47,.14)', serves:'2-3', price:220,
+  {id:'m4', cat:'Main Course', name:'Dal Makhani', desc:'Black lentils simmered overnight with butter.', veg:true, icon:'pot', bg:'rgba(85,139,47,.14)', serves:'2-3', price:220,
     addons:[{name:'Extra Butter',price:20}]},
-  {id:'m5', cat:'Main Course', name:'Veg Biryani', desc:'Fragrant basmati rice with garden vegetables.', veg:true, emoji:'🍚', bg:'rgba(124,179,66,.18)', serves:'1-2',
+  {id:'m5', cat:'Main Course', name:'Veg Biryani', desc:'Fragrant basmati rice with garden vegetables.', veg:true, icon:'bowl', bg:'rgba(124,179,66,.18)', serves:'1-2',
     sizes:[{label:'Half',price:190},{label:'Full',price:340}],
     addons:[{name:'Raita',price:30},{name:'Extra Gravy',price:30}]},
-  {id:'m6', cat:'Breads', name:'Butter Naan', desc:'Soft tandoor-baked bread brushed with butter.', veg:true, emoji:'🫓', bg:'rgba(85,139,47,.14)', serves:'1', price:40},
-  {id:'m7', cat:'Beverages', name:'Masala Chai', desc:'Classic spiced milk tea.', veg:true, emoji:'🍵', bg:'rgba(124,179,66,.18)', serves:'1', price:30},
-  {id:'m8', cat:'Beverages', name:'Cold Coffee', desc:'Chilled and frothy, topped with cream.', veg:true, emoji:'🥤', bg:'rgba(85,139,47,.14)', serves:'1',
+  {id:'m6', cat:'Breads', name:'Butter Naan', desc:'Soft tandoor-baked bread brushed with butter.', veg:true, icon:'bread', bg:'rgba(85,139,47,.14)', serves:'1', price:40},
+  {id:'m7', cat:'Beverages', name:'Masala Chai', desc:'Classic spiced milk tea.', veg:true, icon:'cup', bg:'rgba(124,179,66,.18)', serves:'1', price:30},
+  {id:'m8', cat:'Beverages', name:'Cold Coffee', desc:'Chilled and frothy, topped with cream.', veg:true, icon:'glass', bg:'rgba(85,139,47,.14)', serves:'1',
     sizes:[{label:'Regular',price:90},{label:'Large',price:130}]},
 ];
 
@@ -276,6 +312,46 @@ let menuItems = [];
 let menuLoaded = false;
 let menuLoadError = '';
 let editingId = null;
+
+const ic = (n,c='') => `<svg class="ic ${c}" aria-hidden="true"><use href="#i-${n}"/></svg>`;
+const DISH_ICONS = ['bowl','skewer','pot','bread','cup','glass','utensils','burger'];
+const OLD_EMOJI_ICON = {'🧀':'bowl','🍢':'skewer','🍛':'pot','🍲':'pot','🍚':'bowl','🫓':'bread','🍵':'cup','🥤':'glass'};
+const CAT_ICONS = {'Starters':'skewer','Main Course':'pot','Breads':'bread','Beverages':'glass'};
+function dishIcon(m){ return DISH_ICONS.includes(m.icon) ? m.icon : (OLD_EMOJI_ICON[m.emoji] || CAT_ICONS[m.cat] || 'utensils'); }
+
+/* Photo upload: resized + JPEG-compressed in the browser, then stored inside the
+   dish's Firestore document (no Firebase Storage / billing needed). */
+let formPhoto = '', formIcon = 'utensils';
+function renderPhotoUI(){
+  document.getElementById('photoPrev').innerHTML = formPhoto ? `<img src="${esc(formPhoto)}" alt="">` : ic(formIcon);
+  document.getElementById('iconPick').innerHTML = DISH_ICONS.map(n=>`<button type="button" class="${n===formIcon?'sel':''}" onclick="pickIcon('${n}')" aria-label="${n}">${ic(n)}</button>`).join('');
+}
+function pickIcon(n){ formIcon = n; renderPhotoUI(); }
+function clearPhoto(){ formPhoto = ''; renderPhotoUI(); }
+function onPhoto(inp){
+  const f = inp.files[0]; if(!f) return;
+  const r = new FileReader();
+  r.onload = e => {
+    const img = new Image();
+    img.onload = () => {
+      let max = 720, q = 0.82, out = '';
+      for(let i=0;i<5;i++){
+        const sc = Math.min(1, max/Math.max(img.width,img.height));
+        const c = document.createElement('canvas');
+        c.width = Math.round(img.width*sc); c.height = Math.round(img.height*sc);
+        const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0,0,c.width,c.height);
+        x.drawImage(img,0,0,c.width,c.height);
+        out = c.toDataURL('image/jpeg', q);
+        if(out.length < 250000) break;
+        max *= 0.8; q -= 0.08;
+      }
+      formPhoto = out; renderPhotoUI();
+    };
+    img.onerror = () => formFail('Ye image open nahi hui, doosri photo try karo.');
+    img.src = e.target.result;
+  };
+  r.readAsDataURL(f); inp.value = '';
+}
 
 const esc = s => String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
@@ -325,7 +401,7 @@ function renderMenuTab(){
     ${menuItems.filter(m=>m.cat===c).map(m=>`
     <div class="menu-edit-row ${m.available===false?'off':''}">
       <div class="menu-edit-info">
-        <div class="menu-thumb">${m.imageUrl?`<img src="${esc(m.imageUrl)}" alt="">`:esc(m.emoji||'🍽️')}</div>
+        <div class="menu-thumb">${m.imageUrl?`<img src="${esc(m.imageUrl)}" alt="">`:ic(dishIcon(m))}</div>
         <div>
           <div class="menu-edit-name"><span class="veg-dot ${m.veg?'':'nv'}"></span>${esc(m.name)}</div>
           <div class="menu-edit-meta">${itemPriceText(m)}${m.serves?' · Serves '+esc(m.serves):''}${m.available===false?' · <b>Hidden</b>':''}</div>
@@ -382,7 +458,7 @@ function rowHtml(kind, a, b){
   const ph1 = kind==='size' ? 'Size (e.g. Half)' : 'Add-on (e.g. Extra Cheese)';
   return `<input type="text" class="r-name" placeholder="${ph1}" value="${esc(a)}">
           <input type="number" class="num r-price" min="0" step="1" placeholder="₹" value="${b===''||b==null?'':b}">
-          <button type="button" onclick="this.parentNode.remove()">✕</button>`;
+          <button type="button" onclick="this.parentNode.remove()" aria-label="Remove"><svg class="ic " aria-hidden="true"><use href="#i-x"/></svg></button>`;
 }
 function addSizeRow(label='', price=''){
   const d = document.createElement('div'); d.className='mini-row'; d.innerHTML = rowHtml('size',label,price);
@@ -405,8 +481,9 @@ function openItemForm(id){
   document.getElementById('modalTitle').textContent = m ? 'Edit item' : 'Add item';
   document.getElementById('fName').value = m ? m.name : '';
   document.getElementById('fCat').value = m ? m.cat : '';
-  document.getElementById('fEmoji').value = m ? (m.emoji||'') : '🍽️';
-  document.getElementById('fImg').value = m ? (m.imageUrl||'') : '';
+  formPhoto = m ? (m.imageUrl||'') : '';
+  formIcon = m ? dishIcon(m) : 'utensils';
+  renderPhotoUI();
   document.getElementById('fDesc').value = m ? (m.desc||'') : '';
   document.getElementById('fServes').value = m ? (m.serves||'') : '';
   document.getElementById('fVeg').checked = m ? !!m.veg : true;
@@ -441,12 +518,11 @@ async function saveItem(){
     name, cat,
     desc: document.getElementById('fDesc').value.trim(),
     veg: document.getElementById('fVeg').checked,
-    emoji: document.getElementById('fEmoji').value.trim() || '🍽️',
+    icon: formIcon,
     serves: document.getElementById('fServes').value,
     available: document.getElementById('fAvail').checked
   };
-  const img = document.getElementById('fImg').value.trim();
-  if(img) data.imageUrl = img;
+  if(formPhoto) data.imageUrl = formPhoto;
 
   if(useSizes){
     const rows = readRows('sizesBox');
@@ -545,8 +621,9 @@ function renderList(){
           <div>
             <div class="oid">#${o.id.slice(-6).toUpperCase()}</div>
             <div class="cust-name">${esc(o.customerName || 'Customer')}</div>
-            <div class="cust-meta">${o.phone || o.email || ''} &middot; ${addr.label || 'Address'}</div>
-            <a class="addr-link" href="${mapUrl}" target="_blank">📍 View location on map</a>
+            <div class="cust-meta">${o.phone ? `<a class="addr-link" href="tel:${esc(o.phone)}">${esc(o.phone)}</a>` : esc(o.email || '')} &middot; ${esc(addr.label || 'Address')}</div>
+            <div class="cust-meta addr-full">${[addr.house, addr.area, addr.landmark ? 'Landmark: '+addr.landmark : '', [addr.city, addr.pincode].filter(Boolean).join(' - ')].filter(Boolean).map(esc).join('<br>')}</div>
+            <a class="addr-link" href="${mapUrl}" target="_blank"><svg class="ic " aria-hidden="true"><use href="#i-pin"/></svg> View location on map</a>
           </div>
           <span class="status-pill status-${o.status}">${STATUS_LABEL[o.status] || o.status}</span>
         </div>
