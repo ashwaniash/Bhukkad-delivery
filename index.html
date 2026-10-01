@@ -30,6 +30,14 @@
            allow read: if true;
            allow write: if true; // admin.html's Menu tab adds/edits/removes dishes here (PIN-gated, no Firebase Auth)
          }
+         match /categories/{id} {
+           allow read: if true;
+           allow write: if true; // admin.html Categories tab (PIN-gated)
+         }
+         match /settings/{docId} {
+           allow read: if true;
+           allow write: if true; // admin.html Banner tab (PIN-gated)
+         }
          match /menuOverrides/{itemId} {
            allow read: if true;  // legacy — only read once by admin's "Import default menu"
            allow write: if true;
@@ -102,7 +110,7 @@
   /* ---------- Main app ---------- */
   #app{background:var(--paper);}
   header{position:sticky;top:0;z-index:20;background:var(--paper);border-bottom:1px solid var(--line);padding:14px 18px;display:flex;align-items:center;justify-content:space-between;}
-  header .brand{font-size:19px;font-weight:700;}
+  header .brand{font-size:19px;font-weight:700;max-width:62vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   header .icon-btn{position:relative;width:38px;height:38px;border-radius:50%;background:#fff;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;}
   #cartCount{position:absolute;top:-4px;right:-4px;background:var(--red);color:#fff;font-size:10px;font-weight:700;width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;}
   nav.tabs{display:flex;gap:6px;padding:10px 18px;background:var(--paper);position:sticky;top:65px;z-index:19;border-bottom:1px solid var(--line);}
@@ -195,23 +203,42 @@
   #detailAddBtn{flex:1;background:var(--teal);color:#fff;padding:14px;border-radius:12px;font-weight:700;font-size:14px;}
 
   /* ---------- Orders tab ---------- */
-  #ordersList{padding:14px 18px 40px;}
-  .order-card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:14px;}
-  .order-card .oid{font-size:12px;color:#6b5e4f;font-weight:600;}
-  .status-pill{display:inline-block;padding:4px 12px;border-radius:999px;font-size:12px;font-weight:700;margin-top:6px;}
+  #ordersList{padding:14px 18px 40px;max-width:720px;margin:0 auto;}
+  .o-group{font-size:13px;font-weight:800;color:var(--teal);margin:6px 0 10px;}
+  .o-card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:16px;margin-bottom:14px;}
+  .o-head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;}
+  .o-id{font-weight:800;font-size:15px;}
+  .o-date{font-size:12px;color:#6b5e4f;margin-top:2px;}
+  .status-pill{display:inline-block;padding:5px 12px;border-radius:999px;font-size:12px;font-weight:700;white-space:nowrap;}
   .status-placed{background:#FDECC8;color:#8A5A00;}
   .status-confirmed{background:#DCEEFB;color:#0B5583;}
   .status-preparing{background:#FDECC8;color:#8A5A00;}
   .status-out_for_delivery{background:#E1EFE1;color:#1E5C1E;}
   .status-delivered{background:#E7E7E7;color:#444;}
   .status-cancelled{background:#FBDCDC;color:#8A1E1E;}
-  .track-steps{display:flex;justify-content:space-between;margin:16px 0 6px;position:relative;}
-  .track-steps::before{content:"";position:absolute;top:9px;left:20px;right:20px;height:2px;background:var(--line);}
-  .step{display:flex;flex-direction:column;align-items:center;gap:6px;font-size:10px;color:#9a8b76;flex:1;z-index:1;text-align:center;font-weight:600;}
-  .step .dot{width:20px;height:20px;border-radius:50%;background:var(--line);border:2px solid var(--paper);}
-  .step.done .dot{background:var(--teal);}
-  .step.done{color:var(--teal);font-weight:700;}
-  .eta{margin-top:10px;font-size:13px;color:var(--ink);background:var(--paper-2);padding:8px 12px;border-radius:8px;font-weight:600;}
+  .o-msg{margin:12px 0 4px;padding:10px 12px;border-radius:12px;background:var(--paper-2);font-size:13px;font-weight:600;display:flex;gap:8px;align-items:center;}
+  .o-msg.bad{background:#FBDCDC;color:#8A1E1E;}
+  .o-eta{margin-top:8px;font-size:13px;font-weight:700;color:var(--teal-dark);display:flex;gap:6px;align-items:center;}
+  .o-steps{display:flex;margin:16px 0 4px;}
+  .o-step{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;position:relative;font-size:10.5px;font-weight:600;color:#9a8b76;text-align:center;}
+  .o-step::before{content:"";position:absolute;top:15px;right:50%;width:100%;height:2px;background:var(--line);}
+  .o-step:first-child::before{display:none;}
+  .o-step.done::before{background:var(--teal);}
+  .o-dot{width:32px;height:32px;border-radius:50%;background:var(--paper-2);display:flex;align-items:center;justify-content:center;position:relative;z-index:1;}
+  .o-dot .ic{width:16px;height:16px;}
+  .o-step.done{color:var(--teal);font-weight:700;}
+  .o-step.done .o-dot{background:var(--teal);color:#fff;}
+  .o-step.cur .o-dot{box-shadow:0 0 0 4px rgba(124,179,66,.35);}
+  .o-items{border-top:1px dashed var(--line);margin-top:14px;padding-top:10px;}
+  .o-item{display:flex;justify-content:space-between;gap:12px;font-size:14px;padding:5px 0;font-weight:600;}
+  .o-item small{display:block;color:#6b5e4f;font-size:12px;font-weight:500;margin-top:1px;}
+  .o-sum{display:flex;justify-content:space-between;font-size:13px;color:#6b5e4f;padding:2px 0;}
+  .o-total{display:flex;justify-content:space-between;font-size:16px;font-weight:800;padding-top:8px;margin-top:6px;border-top:1px solid var(--line);}
+  .o-addr{margin-top:12px;background:var(--paper-2);border-radius:12px;padding:10px 12px;font-size:13px;line-height:1.5;display:flex;gap:8px;}
+  .o-addr .ic{margin-top:2px;color:var(--teal);}
+  .o-empty{text-align:center;padding:50px 20px;color:#6b5e4f;}
+  .o-empty .ic{width:44px;height:44px;color:var(--teal);margin-bottom:10px;}
+  .o-empty button{margin-top:14px;background:var(--ink);color:#fff;padding:11px 22px;border-radius:999px;font-weight:700;}
 
   .empty-state{text-align:center;padding:60px 20px;color:#9a8b76;font-weight:500;}
 
@@ -249,6 +276,10 @@
   .btn-main{width:100%;background:var(--marigold);color:var(--ink);padding:14px;border-radius:12px;font-weight:700;font-size:15px;margin-top:6px;}
   .btn-out{width:100%;background:#fff;color:var(--red);border:1px solid #F1C4C1;padding:13px;border-radius:12px;font-weight:700;font-size:14px;margin-top:12px;display:flex;align-items:center;justify-content:center;gap:8px;}
   .sec-h{font-size:12px;font-weight:800;color:var(--teal);margin:16px 0 8px;}
+  .promo-card.has-img{background-size:cover;background-position:center;background-repeat:no-repeat;min-height:190px;align-items:flex-end;}
+  .promo-card.has-img .promo-tag,.promo-card.has-img h2{color:#fff;text-shadow:0 1px 8px rgba(0,0,0,.45);}
+  .cat-icon{overflow:hidden;}
+  .cat-icon img{width:100%;height:100%;object-fit:cover;display:block;}
 </style>
 </head>
 <body>
@@ -273,6 +304,9 @@
 <symbol id="i-glass" viewBox="0 0 24 24"><path d="M6 4h12l-1.6 16H7.6zM6.6 10h10.8M14 4l2-3"/></symbol>
 <symbol id="i-utensils" viewBox="0 0 24 24"><path d="M7 3v8M5 3v5a2 2 0 004 0V3M7 11v10M17 21V3c-2.5 1.5-3.5 4-3.5 7h3.5"/></symbol>
 <symbol id="i-burger" viewBox="0 0 24 24"><path d="M4 11a8 6 0 0116 0zM3 15h18M5 18.5c0 1 1 1.5 2 1.5h10c1 0 2-.5 2-1.5V17H5z"/></symbol>
+<symbol id="i-bag" viewBox="0 0 24 24"><path d="M5 8h14l-1 12H6zM9 8V6a3 3 0 016 0v2"/></symbol>
+<symbol id="i-bike" viewBox="0 0 24 24"><circle cx="6" cy="17" r="3"/><circle cx="18" cy="17" r="3"/><path d="M6 17l3-7h4l3 7M9 10H7M13 10l-1-3h-2"/></symbol>
+<symbol id="i-home" viewBox="0 0 24 24"><path d="M4 11l8-7 8 7v9H4zM10 20v-6h4v6"/></symbol>
 </defs></svg>
 
 <!-- AUTH -->
@@ -311,7 +345,7 @@
 <!-- MAIN APP -->
 <div id="app" class="screen">
   <header>
-    <div class="brand">Bhukkadganj</div>
+    <div class="brand" id="hdrName">Bhukkadganj</div>
     <div class="hdr-actions">
       <button class="icon-btn" onclick="openProfile()" aria-label="Profile"><svg class="ic " aria-hidden="true"><use href="#i-user"/></svg></button>
       <button class="icon-btn" onclick="openCart()" aria-label="Cart"><svg class="ic " aria-hidden="true"><use href="#i-cart"/></svg><span id="cartCount" style="display:none">0</span></button>
@@ -331,13 +365,13 @@
       <span class="search-icon"><svg class="ic " aria-hidden="true"><use href="#i-search"/></svg></span>
       <input id="searchBar" placeholder="Search for delicious food...">
     </div>
-    <div class="promo-card">
-      <div>
-        <div class="promo-tag">SUPER DELICIOUS</div>
-        <h2>Fresh Food,<br>Delivered Fast</h2>
-        <button class="promo-btn" onclick="scrollToMenu()">Order Now</button>
+    <div class="promo-card" id="promoCard">
+      <div id="promoText">
+        <div class="promo-tag" id="promoTag">SUPER DELICIOUS</div>
+        <h2 id="promoTitle">Fresh Food,<br>Delivered Fast</h2>
+        <button class="promo-btn" id="promoBtn" onclick="scrollToMenu()">Order Now</button>
       </div>
-      <div class="promo-emoji"><svg class="ic " aria-hidden="true"><use href="#i-burger"/></svg></div>
+      <div class="promo-emoji" id="promoArt"><svg class="ic " aria-hidden="true"><use href="#i-burger"/></svg></div>
     </div>
     <h3 class="section-title">Popular Categories</h3>
     <div id="catBar"></div>
@@ -494,6 +528,18 @@ const DEFAULT_MENU = [
 let MENU = DEFAULT_MENU;
 const esc = s => String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
+/* Categories (name, photo, icon, order) come from admin.html > Categories tab -> Firestore "categories" */
+let CATS = [];
+let catsStarted = false;
+function listenCategories(){
+  if(!firebaseReady || catsStarted) return;
+  catsStarted = true;
+  db.collection('categories').onSnapshot(snap=>{
+    CATS = snap.docs.map(d=>d.data());
+    renderCategories();
+  }, err=>console.warn('Categories not loaded:', err));
+}
+
 /* ---------------- Live menu from admin (Firestore "menu" collection) ----------------
    Resolves after the first snapshot (or on error) so the first render isn't blocked
    forever. Later changes re-render automatically. If the collection is empty the
@@ -585,11 +631,49 @@ if(firebaseReady){
 
 async function enterApp(){
   showScreen('app');
-  document.getElementById('greetName').textContent = (customerDoc.name||'there').split(' ')[0];
+  setUserName(customerDoc.name);
+  listenBanner();
+  listenCategories();
   await loadMenu();
   renderCategories();
   renderMenu();
   listenToMyOrders();
+}
+
+function setUserName(full){
+  const n = (full||'').trim();
+  document.getElementById('greetName').textContent = n.split(' ')[0] || 'there';
+  document.getElementById('hdrName').textContent = n || 'Bhukkadganj';
+}
+/* Banner (photo + text) is managed from admin.html > Banner tab -> Firestore settings/banner */
+let bannerStarted = false;
+function listenBanner(){
+  if(!firebaseReady || bannerStarted) return;
+  bannerStarted = true;
+  db.collection('settings').doc('banner').onSnapshot(doc=>{
+    const b = doc.exists ? doc.data() : {};
+    const card = document.getElementById('promoCard');
+    const tag = b.tag !== undefined ? b.tag : 'SUPER DELICIOUS';
+    const title = b.title !== undefined ? b.title : 'Fresh Food,\nDelivered Fast';
+    const btn = b.btn !== undefined ? b.btn : 'Order Now';
+    document.getElementById('promoTag').textContent = tag;
+    document.getElementById('promoTag').style.display = tag ? '' : 'none';
+    document.getElementById('promoTitle').innerHTML = esc(title).replace(/\n/g,'<br>');
+    document.getElementById('promoTitle').style.display = title ? '' : 'none';
+    document.getElementById('promoBtn').textContent = btn;
+    document.getElementById('promoBtn').style.display = btn ? '' : 'none';
+    document.getElementById('promoText').style.display = (tag||title||btn) ? '' : 'none';
+    if(b.imageData){
+      const dim = (tag||title) ? 'linear-gradient(90deg,rgba(0,0,0,.55),rgba(0,0,0,.05)),' : '';
+      card.style.backgroundImage = dim + 'url("' + b.imageData + '")';
+      card.classList.add('has-img');
+      document.getElementById('promoArt').style.display = 'none';
+    } else {
+      card.style.backgroundImage = '';
+      card.classList.remove('has-img');
+      document.getElementById('promoArt').style.display = '';
+    }
+  }, err=>console.warn('Banner not loaded:', err));
 }
 
 /* ---------------- Profile & logout ---------------- */
@@ -627,7 +711,7 @@ async function saveProfile(){
   if(!name){ err.textContent='Naam daalo.'; err.style.display='block'; return; }
   if(phone && !PHONE_RE.test(phone)){ err.textContent='Sahi 10-digit mobile number daalo.'; err.style.display='block'; return; }
   await persistCustomer({name, phone});
-  document.getElementById('greetName').textContent = name.split(' ')[0];
+  setUserName(name);
   closeProfile();
 }
 let ordersUnsub = null;
@@ -740,7 +824,9 @@ let activeCat = ALL_CAT;
 let activeFilters = {veg:false, under200:false};
 let favorites = new Set();
 function renderCategories(){
-  const cats = [...new Set(MENU.map(m=>m.cat))];
+  const used = [...new Set(MENU.map(m=>m.cat))];
+  const managed = CATS.slice().sort((a,b)=>(a.order ?? 9999)-(b.order ?? 9999)).map(c=>c.name).filter(n=>used.includes(n));
+  const cats = [...managed, ...used.filter(n=>!managed.includes(n))];
   if(activeCat !== ALL_CAT && !cats.includes(activeCat)) activeCat = ALL_CAT;
   const allChip = `
     <div class="cat-chip ${activeCat===ALL_CAT?'active':''}" data-cat="${ALL_CAT}" onclick="filterCat(this.dataset.cat,this)">
@@ -749,7 +835,9 @@ function renderCategories(){
     </div>`;
   document.getElementById('catBar').innerHTML = allChip + cats.map(c=>{
     const first = MENU.find(m=>m.cat===c);
-    const icon = ic(CAT_ICONS[c] || (first ? dishIcon(first) : 'utensils'));
+    const meta = CATS.find(x=>x.name===c) || {};
+    const icon = meta.imageData ? `<img src="${esc(meta.imageData)}" alt="">`
+      : ic(DISH_ICONS.includes(meta.icon) ? meta.icon : (CAT_ICONS[c] || (first ? dishIcon(first) : 'utensils')));
     return `
     <div class="cat-chip ${c===activeCat?'active':''}" data-cat="${esc(c)}" onclick="filterCat(this.dataset.cat,this)">
       <div class="cat-icon">${icon}</div>
@@ -994,7 +1082,7 @@ async function placeOrder(){
   const addrs = (customerDoc.addresses||[]).slice(); addrs[Math.max(addrs.length-1,0)] = address;
   await persistCustomer({name, phone, addresses: addrs});
   pendingAddress = address;
-  document.getElementById('greetName').textContent = name.split(' ')[0];
+  setUserName(name);
 
   cart = {};
   updateCartBar();
@@ -1003,56 +1091,85 @@ async function placeOrder(){
   alert('Order place ho gaya! Track karo "My Orders" me.');
 }
 
+/* Orders are read with a single where() and sorted here — an orderBy on a second
+   field would need a Firestore composite index and silently returned nothing without it. */
+const orderTime = o => (o.createdAt && o.createdAt.toMillis) ? o.createdAt.toMillis() : Date.now();
 function listenToMyOrders(){
+  const box = document.getElementById('ordersList');
   if(!firebaseReady){
-    document.getElementById('ordersList').innerHTML = `<div class="empty-state">Test mode me order tracking Firestore ke bina nahi chalta. Real FIREBASE_CONFIG daal ke real browser me kholo.</div>`;
+    box.innerHTML = `<div class="o-empty">Test mode me order tracking Firestore ke bina nahi chalta. Real login ke saath kholo.</div>`;
     return;
   }
-  if(ordersUnsub){ ordersUnsub(); }
+  if(ordersUnsub){ ordersUnsub(); ordersUnsub = null; }
+  box.innerHTML = `<div class="o-empty">Orders load ho rahe hain…</div>`;
   ordersUnsub = db.collection('orders').where('customerUid','==',currentUser.uid)
-    .orderBy('createdAt','desc')
     .onSnapshot(snap=>{
-      const orders = snap.docs.map(d=>({id:d.id, ...d.data()}));
+      const orders = snap.docs.map(d=>({id:d.id, ...d.data()})).sort((a,b)=>orderTime(b)-orderTime(a));
       renderOrders(orders);
-    }, err=>console.error(err));
+    }, err=>{
+      console.error(err);
+      box.innerHTML = `<div class="o-empty">Orders load nahi ho paye.<br><small>${esc(err.message)}</small></div>`;
+    });
 }
 
 const STEPS = [
-  {key:'placed', label:'Placed'},
-  {key:'confirmed', label:'Confirmed'},
-  {key:'preparing', label:'Preparing'},
-  {key:'out_for_delivery', label:'On the way'},
-  {key:'delivered', label:'Delivered'}
+  {key:'placed',           label:'Placed',    icon:'bag'},
+  {key:'confirmed',        label:'Confirmed', icon:'check'},
+  {key:'preparing',        label:'Preparing', icon:'pot'},
+  {key:'out_for_delivery', label:'On the way',icon:'bike'},
+  {key:'delivered',        label:'Delivered', icon:'home'}
 ];
+const STATUS_MSG = {
+  placed:'Order mil gaya. Restaurant jald confirm karega.',
+  confirmed:'Order confirm ho gaya hai.',
+  preparing:'Aapka khana ban raha hai.',
+  out_for_delivery:'Rider aapka order le kar aa raha hai.',
+  delivered:'Order deliver ho gaya. Enjoy your meal!',
+  cancelled:'Ye order cancel ho gaya.'
+};
+function orderCard(o){
+  const stepIdx = STEPS.findIndex(s=>s.key===o.status);
+  const cancelled = o.status === 'cancelled';
+  const finished = cancelled || o.status === 'delivered';
+  const when = new Date(orderTime(o)).toLocaleString('en-IN',{day:'numeric',month:'short',hour:'numeric',minute:'2-digit'});
+  const label = cancelled ? 'Cancelled' : (STEPS[stepIdx] ? STEPS[stepIdx].label : o.status);
+  const steps = (cancelled || finished) ? '' : `<div class="o-steps">${STEPS.map((s,i)=>`
+      <div class="o-step ${i<=stepIdx?'done':''} ${i===stepIdx?'cur':''}"><div class="o-dot">${ic(s.icon)}</div><span>${s.label}</span></div>`).join('')}</div>`;
+  const items = (o.items||[]).map(i=>{
+    const sub = [i.size, ...(i.addons||[])].filter(Boolean).map(esc).join(', ');
+    return `<div class="o-item"><div>${esc(i.name)} × ${i.qty}${sub?`<small>${sub}</small>`:''}</div><div>₹${i.price*i.qty}</div></div>`;
+  }).join('');
+  const a = o.address || {};
+  const addr = [a.house, a.area, a.landmark?('Landmark: '+a.landmark):'', [a.city,a.pincode].filter(Boolean).join(' - ')].filter(Boolean).map(esc).join('<br>');
+  return `
+  <div class="o-card">
+    <div class="o-head">
+      <div><div class="o-id">Order #${o.id.slice(-6).toUpperCase()}</div><div class="o-date">${when}</div></div>
+      <span class="status-pill status-${esc(o.status)}">${esc(label)}</span>
+    </div>
+    <div class="o-msg ${cancelled?'bad':''}">${ic(cancelled?'x':(STEPS[stepIdx]?STEPS[stepIdx].icon:'bag'))}<span>${esc(STATUS_MSG[o.status] || '')}</span></div>
+    ${o.eta && !finished ? `<div class="o-eta">${ic('bike')} Estimated: ${esc(o.eta)}</div>` : ''}
+    ${steps}
+    <div class="o-items">
+      ${items}
+      <div class="o-sum"><span>Subtotal</span><span>₹${o.subtotal ?? (o.total - (o.deliveryFee||0))}</span></div>
+      <div class="o-sum"><span>Delivery fee</span><span>₹${o.deliveryFee ?? 0}</span></div>
+      <div class="o-total"><span>Total</span><span>₹${o.total}</span></div>
+    </div>
+    ${addr || o.phone ? `<div class="o-addr">${ic('pin')}<div>${addr}${o.phone?`${addr?'<br>':''}${esc(o.phone)}`:''}</div></div>` : ''}
+  </div>`;
+}
 function renderOrders(orders){
+  const box = document.getElementById('ordersList');
   if(orders.length===0){
-    document.getElementById('ordersList').innerHTML = `<div class="empty-state">Abhi tak koi order nahi.</div>`;
+    box.innerHTML = `<div class="o-empty">${ic('bag')}<div style="font-weight:700;font-size:16px;color:var(--ink)">Abhi tak koi order nahi</div><div style="font-size:13px;margin-top:4px">Order karoge to yahan live status dikhega.</div><button onclick="showTab('menu')">Menu dekho</button></div>`;
     return;
   }
-  document.getElementById('ordersList').innerHTML = orders.map(o=>{
-    const stepIdx = STEPS.findIndex(s=>s.key===o.status);
-    const cancelled = o.status === 'cancelled';
-    const stepsHtml = cancelled ? '' : `
-      <div class="track-steps">
-        ${STEPS.map((s,i)=>`
-          <div class="step ${i<=stepIdx?'done':''}">
-            <div class="dot"></div>
-            <span>${s.label}</span>
-          </div>`).join('')}
-      </div>
-      ${o.eta ? `<div class="eta">Estimated: ${o.eta}</div>` : ''}
-    `;
-    const itemsText = o.items.map(i=>`${i.name}${i.size?' ('+i.size+')':''} × ${i.qty}`).join(', ');
-    return `
-      <div class="order-card">
-        <div class="oid">Order #${o.id.slice(-6).toUpperCase()}</div>
-        <div>${itemsText}</div>
-        <div><b>₹${o.total}</b></div>
-        <span class="status-pill status-${o.status}">${cancelled ? 'Cancelled' : STEPS[stepIdx]?.label || o.status}</span>
-        ${stepsHtml}
-      </div>
-    `;
-  }).join('');
+  const active = orders.filter(o=>!['delivered','cancelled'].includes(o.status));
+  const past = orders.filter(o=>['delivered','cancelled'].includes(o.status));
+  box.innerHTML =
+    (active.length ? `<div class="o-group">Active orders</div>${active.map(orderCard).join('')}` : '') +
+    (past.length ? `<div class="o-group">Past orders</div>${past.map(orderCard).join('')}` : '');
 }
 </script>
 </body>
