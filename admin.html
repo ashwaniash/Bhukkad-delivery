@@ -9,7 +9,10 @@
   SETUP:
   1. Same FIREBASE_CONFIG as index.html — paste it below.
   2. ADMIN_PIN — change this from the default before using.
-  3. This panel writes order status with no auth check beyond the PIN screen
+  3. Menu tab: add / edit / delete dishes. They are saved in Firestore
+     ("menu" collection) and index.html reads them live. Firestore rules must
+     allow read+write on /menu/{id} (see the rules block in index.html).
+  4. This panel writes order status with no auth check beyond the PIN screen
      (the PIN only gates the browser UI, not Firestore itself). That's fine
      for a single-café internal tool, but for real security later, restrict
      the Firestore "orders" update rule to a specific admin email checked via
@@ -91,11 +94,47 @@
 
   .empty-state{text-align:center;padding:60px 20px;color:#9a8b76;}
 
-  .menu-edit-row{display:flex;justify-content:space-between;align-items:center;background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px 16px;margin-bottom:10px;}
+  /* ---- Menu manager ---- */
+  .menu-toolbar{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap;}
+  .menu-toolbar p{margin:0;font-size:13px;color:#6b5e4f;}
+  .btn-primary{background:var(--teal);color:#fff;padding:10px 18px;border-radius:10px;font-weight:700;font-size:13px;}
+  .btn-ghost{background:#fff;color:var(--ink);border:1px solid var(--line);padding:8px 14px;border-radius:8px;font-weight:700;font-size:12px;}
+  .btn-danger{background:#fff;color:var(--red);border:1px solid #F1C4C1;padding:8px 14px;border-radius:8px;font-weight:700;font-size:12px;}
+  .menu-cat-title{font-weight:800;font-size:13px;letter-spacing:.4px;text-transform:uppercase;color:var(--teal);margin:18px 0 8px;}
+  .menu-edit-row{display:flex;justify-content:space-between;align-items:center;gap:12px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:10px;flex-wrap:wrap;}
+  .menu-edit-row.off{opacity:.55;}
+  .menu-thumb{width:46px;height:46px;border-radius:10px;background:var(--paper-2);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;overflow:hidden;}
+  .menu-thumb img{width:100%;height:100%;object-fit:cover;}
+  .menu-edit-info{display:flex;align-items:center;gap:12px;flex:1;min-width:200px;}
   .menu-edit-name{font-weight:700;font-size:14px;}
-  .menu-edit-controls{display:flex;gap:8px;align-items:center;}
-  .serves-select{padding:7px 10px;border-radius:8px;border:1px solid var(--line);font-size:13px;}
-  .serves-save{background:var(--marigold);color:#fff;padding:7px 14px;border-radius:8px;font-size:12px;font-weight:700;}
+  .menu-edit-meta{font-size:12px;color:#6b5e4f;margin-top:2px;}
+  .veg-dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px;background:#2E7D32;}
+  .veg-dot.nv{background:#B3261E;}
+  .menu-edit-controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+  .switch{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:#6b5e4f;cursor:pointer;}
+  .empty-box{background:var(--paper-2);border-radius:14px;padding:26px 18px;text-align:center;font-size:14px;color:#33411f;}
+  .empty-box button{margin-top:12px;}
+
+  /* ---- Edit modal ---- */
+  #itemModal{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;z-index:50;align-items:flex-start;justify-content:center;overflow-y:auto;padding:20px 12px;}
+  #itemModal.show{display:flex;}
+  .modal-card{background:#fff;border-radius:16px;width:100%;max-width:560px;padding:20px;margin:auto 0;}
+  .modal-card h3{margin:0 0 14px;font-weight:800;font-size:18px;}
+  .fld{margin-bottom:12px;}
+  .fld label{display:block;font-size:12px;font-weight:700;color:#6b5e4f;margin-bottom:4px;}
+  .fld input[type=text],.fld input[type=number],.fld input[type=url],.fld textarea,.fld select{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;font-size:14px;font-family:inherit;background:#fff;}
+  .fld textarea{resize:vertical;min-height:56px;}
+  .fld-row{display:flex;gap:10px;}
+  .fld-row .fld{flex:1;min-width:0;}
+  .check-row{display:flex;gap:18px;flex-wrap:wrap;margin:4px 0 12px;}
+  .check-row label{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;cursor:pointer;}
+  .mini-row{display:flex;gap:8px;margin-bottom:8px;}
+  .mini-row input{flex:1;min-width:0;padding:9px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px;font-family:inherit;}
+  .mini-row input.num{flex:0 0 90px;}
+  .mini-row button{background:#fff;border:1px solid #F1C4C1;color:var(--red);border-radius:8px;width:34px;font-weight:800;}
+  .add-mini{background:var(--paper-2);color:var(--teal-dark);padding:7px 12px;border-radius:8px;font-size:12px;font-weight:700;}
+  .modal-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:16px;}
+  #formError{color:var(--red);font-size:13px;font-weight:600;margin-top:8px;display:none;}
 </style>
 </head>
 <body>
@@ -136,8 +175,57 @@
   </div>
 
   <div id="menuPane" style="display:none">
-    <p style="font-size:13px;color:#6b5e4f;margin:0 0 14px">Yahan se har dish ka "Serves" value set karo — customer app me yahi dikhega, code edit karne ki zaroorat nahi.</p>
+    <div class="menu-toolbar">
+      <p>Yahan se dish add, edit ya delete karo — customer app me turant update ho jaata hai.</p>
+      <button class="btn-primary" onclick="openItemForm(null)">+ Add item</button>
+    </div>
     <div id="menuEditList"></div>
+  </div>
+</div>
+
+<!-- ADD / EDIT ITEM MODAL -->
+<div id="itemModal">
+  <div class="modal-card">
+    <h3 id="modalTitle">Add item</h3>
+    <div class="fld"><label>Dish name *</label><input type="text" id="fName" placeholder="e.g. Paneer Tikka"></div>
+    <div class="fld-row">
+      <div class="fld"><label>Category *</label><input type="text" id="fCat" list="catList" placeholder="e.g. Starters"><datalist id="catList"></datalist></div>
+      <div class="fld"><label>Emoji</label><input type="text" id="fEmoji" maxlength="4" placeholder="🍛"></div>
+    </div>
+    <div class="fld"><label>Photo URL (optional — emoji ki jagah dikhegi)</label><input type="url" id="fImg" placeholder="https://..."></div>
+    <div class="fld"><label>Description</label><textarea id="fDesc" placeholder="Short line about the dish"></textarea></div>
+    <div class="fld-row">
+      <div class="fld"><label>Serves</label>
+        <select id="fServes">
+          <option value="">Not shown</option>
+          <option value="1">Serves 1</option>
+          <option value="1-2">Serves 1-2</option>
+          <option value="2-3">Serves 2-3</option>
+          <option value="3-4">Serves 3-4</option>
+        </select>
+      </div>
+      <div class="fld" id="priceFld"><label>Price (₹) *</label><input type="number" id="fPrice" min="0" step="1" placeholder="e.g. 120"></div>
+    </div>
+    <div class="check-row">
+      <label><input type="checkbox" id="fVeg" checked> Veg</label>
+      <label><input type="checkbox" id="fAvail" checked> Available (customers ko dikhe)</label>
+      <label><input type="checkbox" id="fUseSizes" onchange="toggleSizes()"> Multiple sizes (Half / Full…)</label>
+    </div>
+    <div id="sizesSection" style="display:none" class="fld">
+      <label>Sizes — pehla size default hota hai</label>
+      <div id="sizesBox"></div>
+      <button type="button" class="add-mini" onclick="addSizeRow()">+ Add size</button>
+    </div>
+    <div class="fld">
+      <label>Add-ons (optional)</label>
+      <div id="addonsBox"></div>
+      <button type="button" class="add-mini" onclick="addAddonRow()">+ Add add-on</button>
+    </div>
+    <div id="formError"></div>
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="closeItemForm()">Cancel</button>
+      <button class="btn-primary" id="saveItemBtn" onclick="saveItem()">Save</button>
+    </div>
   </div>
 </div>
 
@@ -158,20 +246,38 @@ let allOrders = [];
 let currentFilter = 'all';
 let db;
 
-/* Same item list as index.html's MENU (id + name only — this panel only
-   needs to edit the "serves" field, not the full catalog). Keep ids in
-   sync with index.html if you add/remove menu items there. */
-const MENU_ITEMS = [
-  {id:'m1', name:'Paneer Tikka'},
-  {id:'m2', name:'Chicken Seekh Kebab'},
-  {id:'m3', name:'Butter Chicken'},
-  {id:'m4', name:'Dal Makhani'},
-  {id:'m5', name:'Veg Biryani'},
-  {id:'m6', name:'Butter Naan'},
-  {id:'m7', name:'Masala Chai'},
-  {id:'m8', name:'Cold Coffee'},
+/* ---------------- Menu manager ----------------
+   Items live in Firestore collection "menu" (doc id = item id). index.html
+   listens to the same collection, so every change here shows up for customers
+   immediately. DEFAULT_MENU is only used by the one-click "Import default menu"
+   button the first time, so you don't have to retype the starting dishes. */
+const DEFAULT_MENU = [
+  {id:'m1', cat:'Starters', name:'Paneer Tikka', desc:'Char-grilled cottage cheese with smoky spices.', veg:true, emoji:'🧀', bg:'rgba(124,179,66,.18)', serves:'1-2',
+    sizes:[{label:'Half',price:180},{label:'Full',price:320}],
+    addons:[{name:'Extra Chutney',price:20},{name:'Extra Paneer',price:60}]},
+  {id:'m2', cat:'Starters', name:'Chicken Seekh Kebab', desc:'Minced chicken skewers roasted over coal.', veg:false, emoji:'🍢', bg:'rgba(85,139,47,.14)', serves:'1-2',
+    sizes:[{label:'Half',price:220},{label:'Full',price:400}],
+    addons:[{name:'Extra Mint Chutney',price:20}]},
+  {id:'m3', cat:'Main Course', name:'Butter Chicken', desc:'Creamy tomato gravy, slow-cooked chicken.', veg:false, emoji:'🍛', bg:'rgba(124,179,66,.18)', serves:'2-3',
+    sizes:[{label:'Half',price:260},{label:'Full',price:460}],
+    addons:[{name:'Extra Butter',price:30},{name:'Extra Gravy',price:40}]},
+  {id:'m4', cat:'Main Course', name:'Dal Makhani', desc:'Black lentils simmered overnight with butter.', veg:true, emoji:'🍲', bg:'rgba(85,139,47,.14)', serves:'2-3', price:220,
+    addons:[{name:'Extra Butter',price:20}]},
+  {id:'m5', cat:'Main Course', name:'Veg Biryani', desc:'Fragrant basmati rice with garden vegetables.', veg:true, emoji:'🍚', bg:'rgba(124,179,66,.18)', serves:'1-2',
+    sizes:[{label:'Half',price:190},{label:'Full',price:340}],
+    addons:[{name:'Raita',price:30},{name:'Extra Gravy',price:30}]},
+  {id:'m6', cat:'Breads', name:'Butter Naan', desc:'Soft tandoor-baked bread brushed with butter.', veg:true, emoji:'🫓', bg:'rgba(85,139,47,.14)', serves:'1', price:40},
+  {id:'m7', cat:'Beverages', name:'Masala Chai', desc:'Classic spiced milk tea.', veg:true, emoji:'🍵', bg:'rgba(124,179,66,.18)', serves:'1', price:30},
+  {id:'m8', cat:'Beverages', name:'Cold Coffee', desc:'Chilled and frothy, topped with cream.', veg:true, emoji:'🥤', bg:'rgba(85,139,47,.14)', serves:'1',
+    sizes:[{label:'Regular',price:90},{label:'Large',price:130}]},
 ];
-let menuOverrides = {};
+
+let menuItems = [];
+let menuLoaded = false;
+let menuLoadError = '';
+let editingId = null;
+
+const esc = s => String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
 function setTab(tab, el){
   document.querySelectorAll('.filter-bar button[data-tab]').forEach(b=>b.classList.remove('active'));
@@ -179,51 +285,215 @@ function setTab(tab, el){
   document.getElementById('ordersPane').style.display = tab==='orders' ? 'block' : 'none';
   document.getElementById('menuPane').style.display = tab==='menu' ? 'block' : 'none';
   document.getElementById('dashTitle').textContent = tab==='orders' ? 'Orders' : 'Menu';
-  if(tab==='menu') renderMenuTab();
 }
 
-async function renderMenuTab(){
-  try{
-    const snap = await db.collection('menuOverrides').get();
-    menuOverrides = {};
-    snap.forEach(doc=>{ menuOverrides[doc.id] = doc.data(); });
-  } catch(err){ console.warn('Could not load menu overrides:', err); }
+function listenMenu(){
+  db.collection('menu').onSnapshot(snap=>{
+    menuItems = snap.docs.map(d=>({id:d.id, ...d.data()}))
+      .sort((a,b)=>(a.order ?? 9999)-(b.order ?? 9999) || String(a.name).localeCompare(String(b.name)));
+    menuLoaded = true; menuLoadError = '';
+    renderMenuTab();
+  }, err=>{
+    console.error(err);
+    menuLoaded = true;
+    menuLoadError = err.message;
+    renderMenuTab();
+  });
+}
 
-  document.getElementById('menuEditList').innerHTML = MENU_ITEMS.map(item=>{
-    const current = (menuOverrides[item.id] && menuOverrides[item.id].serves) || '';
-    return `
-    <div class="menu-edit-row">
-      <div class="menu-edit-name">${item.name}</div>
-      <div class="menu-edit-controls">
-        <select class="serves-select" id="serves-${item.id}">
-          <option value="" ${current===''?'selected':''}>Default</option>
-          <option value="1" ${current==='1'?'selected':''}>Serves 1</option>
-          <option value="1-2" ${current==='1-2'?'selected':''}>Serves 1-2</option>
-          <option value="2-3" ${current==='2-3'?'selected':''}>Serves 2-3</option>
-          <option value="3-4" ${current==='3-4'?'selected':''}>Serves 3-4</option>
-        </select>
-        <button class="serves-save" onclick="saveServes('${item.id}')">Save</button>
+function itemPriceText(m){
+  if(m.sizes && m.sizes.length) return m.sizes.map(s=>`${esc(s.label)} ₹${s.price}`).join(' · ');
+  return m.price!=null ? '₹'+m.price : '—';
+}
+
+function renderMenuTab(){
+  const box = document.getElementById('menuEditList');
+  if(menuLoadError){
+    box.innerHTML = `<div class="empty-box">Menu load nahi hua: ${esc(menuLoadError)}<br>Firestore rules me <b>/menu/{id}</b> ke liye read + write allow karo (rules index.html ke top comment me hain).</div>`;
+    return;
+  }
+  if(!menuLoaded){ box.innerHTML = `<div class="empty-state">Loading…</div>`; return; }
+  if(menuItems.length===0){
+    box.innerHTML = `<div class="empty-box">Abhi menu khaali hai.<br>Customer app abhi built-in default dishes dikha raha hai.<br>
+      <button class="btn-primary" onclick="importDefaultMenu()">Import default menu (8 dishes)</button><br>
+      <span style="font-size:12px;opacity:.8">ya upar "+ Add item" se naya dish banao.</span></div>`;
+    return;
+  }
+  const cats = [...new Set(menuItems.map(m=>m.cat))];
+  box.innerHTML = cats.map(c=>`
+    <div class="menu-cat-title">${esc(c)}</div>
+    ${menuItems.filter(m=>m.cat===c).map(m=>`
+    <div class="menu-edit-row ${m.available===false?'off':''}">
+      <div class="menu-edit-info">
+        <div class="menu-thumb">${m.imageUrl?`<img src="${esc(m.imageUrl)}" alt="">`:esc(m.emoji||'🍽️')}</div>
+        <div>
+          <div class="menu-edit-name"><span class="veg-dot ${m.veg?'':'nv'}"></span>${esc(m.name)}</div>
+          <div class="menu-edit-meta">${itemPriceText(m)}${m.serves?' · Serves '+esc(m.serves):''}${m.available===false?' · <b>Hidden</b>':''}</div>
+        </div>
       </div>
-    </div>`;
-  }).join('');
+      <div class="menu-edit-controls">
+        <label class="switch"><input type="checkbox" ${m.available===false?'':'checked'} onchange="toggleAvailable('${m.id}',this.checked)"> Available</label>
+        <button class="btn-ghost" onclick="openItemForm('${m.id}')">Edit</button>
+        <button class="btn-danger" onclick="deleteItem('${m.id}')">Delete</button>
+      </div>
+    </div>`).join('')}
+  `).join('');
 }
 
-async function saveServes(itemId){
-  const val = document.getElementById('serves-'+itemId).value;
+async function toggleAvailable(id, on){
+  try{ await db.collection('menu').doc(id).update({available:on}); }
+  catch(err){ alert('Update nahi hua: '+err.message); }
+}
+
+async function deleteItem(id){
+  const m = menuItems.find(x=>x.id===id);
+  if(!m) return;
+  if(!confirm(`"${m.name}" ko menu se delete karna hai? Ye wapas nahi aayega.`)) return;
+  try{ await db.collection('menu').doc(id).delete(); }
+  catch(err){ alert('Delete nahi hua: '+err.message); }
+}
+
+async function importDefaultMenu(){
   try{
-    if(val === ''){
-      await db.collection('menuOverrides').doc(itemId).delete().catch(()=>{});
-    } else {
-      await db.collection('menuOverrides').doc(itemId).set({serves: val});
+    // carry over any older "Serves" overrides so nothing set earlier is lost
+    const overrides = {};
+    try{
+      const o = await db.collection('menuOverrides').get();
+      o.forEach(d=>{ overrides[d.id] = d.data().serves; });
+    }catch(e){}
+    const batch = db.batch();
+    DEFAULT_MENU.forEach((m,i)=>{
+      const {id, ...data} = m;
+      if(overrides[id]) data.serves = overrides[id];
+      batch.set(db.collection('menu').doc(id), {...data, available:true, order:i});
+    });
+    await batch.commit();
+  } catch(err){ alert('Import nahi hua: '+err.message); }
+}
+
+/* ---- Add / edit form ---- */
+function toggleSizes(){
+  const on = document.getElementById('fUseSizes').checked;
+  document.getElementById('sizesSection').style.display = on ? 'block' : 'none';
+  document.getElementById('priceFld').style.display = on ? 'none' : 'block';
+  if(on && document.getElementById('sizesBox').children.length===0) addSizeRow();
+}
+function rowHtml(kind, a, b){
+  const ph1 = kind==='size' ? 'Size (e.g. Half)' : 'Add-on (e.g. Extra Cheese)';
+  return `<input type="text" class="r-name" placeholder="${ph1}" value="${esc(a)}">
+          <input type="number" class="num r-price" min="0" step="1" placeholder="₹" value="${b===''||b==null?'':b}">
+          <button type="button" onclick="this.parentNode.remove()">✕</button>`;
+}
+function addSizeRow(label='', price=''){
+  const d = document.createElement('div'); d.className='mini-row'; d.innerHTML = rowHtml('size',label,price);
+  document.getElementById('sizesBox').appendChild(d);
+}
+function addAddonRow(name='', price=''){
+  const d = document.createElement('div'); d.className='mini-row'; d.innerHTML = rowHtml('addon',name,price);
+  document.getElementById('addonsBox').appendChild(d);
+}
+function readRows(boxId){
+  return [...document.querySelectorAll('#'+boxId+' .mini-row')].map(r=>({
+    name: r.querySelector('.r-name').value.trim(),
+    price: r.querySelector('.r-price').value
+  })).filter(x=>x.name || x.price!=='');
+}
+
+function openItemForm(id){
+  editingId = id;
+  const m = id ? menuItems.find(x=>x.id===id) : null;
+  document.getElementById('modalTitle').textContent = m ? 'Edit item' : 'Add item';
+  document.getElementById('fName').value = m ? m.name : '';
+  document.getElementById('fCat').value = m ? m.cat : '';
+  document.getElementById('fEmoji').value = m ? (m.emoji||'') : '🍽️';
+  document.getElementById('fImg').value = m ? (m.imageUrl||'') : '';
+  document.getElementById('fDesc').value = m ? (m.desc||'') : '';
+  document.getElementById('fServes').value = m ? (m.serves||'') : '';
+  document.getElementById('fVeg').checked = m ? !!m.veg : true;
+  document.getElementById('fAvail').checked = m ? m.available!==false : true;
+  document.getElementById('fPrice').value = m && m.price!=null ? m.price : '';
+  document.getElementById('sizesBox').innerHTML = '';
+  document.getElementById('addonsBox').innerHTML = '';
+  const hasSizes = !!(m && m.sizes && m.sizes.length);
+  document.getElementById('fUseSizes').checked = hasSizes;
+  if(hasSizes) m.sizes.forEach(s=>addSizeRow(s.label, s.price));
+  if(m && m.addons) m.addons.forEach(a=>addAddonRow(a.name, a.price));
+  document.getElementById('catList').innerHTML = [...new Set(menuItems.map(x=>x.cat))].map(c=>`<option value="${esc(c)}">`).join('');
+  toggleSizes();
+  document.getElementById('formError').style.display = 'none';
+  document.getElementById('itemModal').classList.add('show');
+}
+function closeItemForm(){ document.getElementById('itemModal').classList.remove('show'); }
+
+function formFail(msg){
+  const e = document.getElementById('formError');
+  e.textContent = msg; e.style.display = 'block';
+}
+
+async function saveItem(){
+  const name = document.getElementById('fName').value.trim();
+  const cat = document.getElementById('fCat').value.trim();
+  if(!name) return formFail('Dish ka naam daalo.');
+  if(!cat) return formFail('Category daalo (e.g. Starters).');
+
+  const useSizes = document.getElementById('fUseSizes').checked;
+  const data = {
+    name, cat,
+    desc: document.getElementById('fDesc').value.trim(),
+    veg: document.getElementById('fVeg').checked,
+    emoji: document.getElementById('fEmoji').value.trim() || '🍽️',
+    serves: document.getElementById('fServes').value,
+    available: document.getElementById('fAvail').checked
+  };
+  const img = document.getElementById('fImg').value.trim();
+  if(img) data.imageUrl = img;
+
+  if(useSizes){
+    const rows = readRows('sizesBox');
+    if(rows.length===0) return formFail('Kam se kam ek size daalo, ya "Multiple sizes" band karo.');
+    const sizes = [];
+    for(const r of rows){
+      const p = Number(r.price);
+      if(!r.name || r.price==='' || isNaN(p) || p<0) return formFail('Har size ka naam aur price sahi daalo.');
+      sizes.push({label:r.name, price:p});
     }
+    data.sizes = sizes;
+  } else {
+    const p = Number(document.getElementById('fPrice').value);
+    if(document.getElementById('fPrice').value==='' || isNaN(p) || p<0) return formFail('Price daalo.');
+    data.price = p;
+  }
+
+  const addons = [];
+  for(const r of readRows('addonsBox')){
+    const p = Number(r.price);
+    if(!r.name || r.price==='' || isNaN(p) || p<0) return formFail('Har add-on ka naam aur price sahi daalo.');
+    addons.push({name:r.name, price:p});
+  }
+  if(addons.length) data.addons = addons;
+
+  const existing = editingId ? menuItems.find(x=>x.id===editingId) : null;
+  data.bg = existing && existing.bg ? existing.bg : (menuItems.length%2 ? 'rgba(85,139,47,.14)' : 'rgba(124,179,66,.18)');
+  data.order = existing && existing.order!=null ? existing.order : (menuItems.reduce((mx,m)=>Math.max(mx, m.order ?? 0), 0) + 1);
+
+  const btn = document.getElementById('saveItemBtn');
+  btn.disabled = true; btn.textContent = 'Saving…';
+  try{
+    const id = editingId || ('m' + Date.now());
+    await db.collection('menu').doc(id).set(data);   // full replace, so removed sizes/add-ons really go away
+    closeItemForm();
   } catch(err){
-    alert('Save nahi hua: '+err.message);
+    formFail('Save nahi hua: '+err.message);
+  } finally {
+    btn.disabled = false; btn.textContent = 'Save';
   }
 }
+document.getElementById('itemModal').addEventListener('click', e=>{ if(e.target.id==='itemModal') closeItemForm(); });
 
 function initFirebaseAndListen(){
   firebase.initializeApp(FIREBASE_CONFIG);
   db = firebase.firestore();
+  listenMenu();
   db.collection('orders').orderBy('createdAt','desc').onSnapshot(snap=>{
     allOrders = snap.docs.map(d=>({id:d.id, ref:d.ref, ...d.data()}));
     renderStats();
@@ -246,7 +516,7 @@ function renderStats(){
 
 function setFilter(f, el){
   currentFilter = f;
-  document.querySelectorAll('.filter-bar button').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('#ordersPane .filter-bar button').forEach(b=>b.classList.remove('active'));
   el.classList.add('active');
   renderList();
 }
@@ -268,13 +538,13 @@ function renderList(){
   document.getElementById('ordersList').innerHTML = list.map(o=>{
     const addr = o.address || {};
     const mapUrl = addr.lat ? `https://www.google.com/maps?q=${addr.lat},${addr.lng}` : '#';
-    const itemsHtml = (o.items||[]).map(i=>`<div>${i.name} × ${i.qty} — ₹${i.price*i.qty}</div>`).join('');
+    const itemsHtml = (o.items||[]).map(i=>`<div>${esc(i.name)} × ${i.qty} — ₹${i.price*i.qty}</div>`).join('');
     return `
       <div class="order-card">
         <div class="order-top">
           <div>
             <div class="oid">#${o.id.slice(-6).toUpperCase()}</div>
-            <div class="cust-name">${o.customerName || 'Customer'}</div>
+            <div class="cust-name">${esc(o.customerName || 'Customer')}</div>
             <div class="cust-meta">${o.phone || o.email || ''} &middot; ${addr.label || 'Address'}</div>
             <a class="addr-link" href="${mapUrl}" target="_blank">📍 View location on map</a>
           </div>
