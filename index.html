@@ -27,9 +27,13 @@
            allow create: if request.auth != null && request.resource.data.customerUid == request.auth.uid;
            allow update: if true; // admin.html updates status — see note in that file
          }
-         match /menuOverrides/{itemId} {
+         match /menu/{itemId} {
            allow read: if true;
-           allow write: if true; // admin.html's Menu tab writes here (PIN-gated, no Firebase Auth)
+           allow write: if true; // admin.html's Menu tab adds/edits/removes dishes here (PIN-gated, no Firebase Auth)
+         }
+         match /menuOverrides/{itemId} {
+           allow read: if true;  // legacy — only read once by admin's "Import default menu"
+           allow write: if true;
          }
        }
      }
@@ -133,17 +137,23 @@
   .filter-chip{padding:8px 14px;border-radius:999px;background:var(--paper-2);font-size:12px;font-weight:700;color:var(--teal);border:1.5px solid transparent;}
   .filter-chip.active{background:var(--marigold);color:#fff;border-color:var(--marigold);}
 
-  .menu-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;padding:6px 14px 110px;}
-  .food-card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:8px;position:relative;}
-  .food-card-img-wrap{position:relative;margin-bottom:6px;}
-  .food-card-img{aspect-ratio:1/1;width:78%;margin:0 auto;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:26px;}
-  .food-heart{position:absolute;top:2px;right:2px;width:20px;height:20px;border-radius:50%;background:rgba(255,255,255,.9);display:flex;align-items:center;justify-content:center;font-size:11px;box-shadow:0 2px 6px rgba(0,0,0,.12);}
+  /* Product grid — 2 columns on phones, more on wider screens. Cards stretch to equal
+     height; name block has a fixed 2-line height and the price/ADD row is pinned to the
+     bottom, so every card lines up perfectly regardless of name length. */
+  .menu-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;padding:6px 18px 120px;align-items:stretch;}
+  @media(min-width:640px){.menu-grid{grid-template-columns:repeat(3,minmax(0,1fr));}}
+  @media(min-width:960px){.menu-grid{grid-template-columns:repeat(4,minmax(0,1fr));max-width:1100px;margin:0 auto;width:100%;}}
+  .food-card{display:flex;flex-direction:column;background:#fff;border:1px solid var(--line);border-radius:16px;padding:12px;position:relative;cursor:pointer;}
+  .food-card-img-wrap{position:relative;margin-bottom:10px;}
+  .food-card-img{aspect-ratio:1/1;width:100%;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:46px;overflow:hidden;}
+  .food-card-img img{width:100%;height:100%;object-fit:cover;display:block;}
+  .food-heart{position:absolute;top:8px;right:8px;width:28px;height:28px;border-radius:50%;background:rgba(255,255,255,.92);display:flex;align-items:center;justify-content:center;font-size:15px;box-shadow:0 2px 6px rgba(0,0,0,.12);}
   .food-heart.on{color:var(--red);}
-  .food-card-name{font-weight:700;font-size:11.5px;line-height:1.25;margin-bottom:2px;min-height:28px;}
-  .food-card-serves{font-size:9.5px;color:#8a9a7a;font-weight:600;margin-bottom:4px;}
-  .food-card-price-row{display:flex;flex-direction:column;gap:5px;align-items:stretch;}
-  .food-card-price{font-size:12px;color:#6b5e4f;font-weight:700;}
-  .food-add-btn{background:var(--paper);color:var(--marigold-dark);border:1.5px solid var(--marigold);padding:4px 6px;border-radius:7px;font-weight:800;font-size:10px;letter-spacing:.3px;width:100%;}
+  .food-card-name{font-weight:700;font-size:15px;line-height:1.3;margin-bottom:4px;height:calc(1.3em * 2);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+  .food-card-serves{font-size:11.5px;color:#7d8f6b;font-weight:600;margin-bottom:10px;min-height:15px;line-height:15px;}
+  .food-card-price-row{margin-top:auto;display:flex;flex-direction:column;gap:8px;align-items:stretch;}
+  .food-card-price{font-size:16px;color:var(--ink);font-weight:800;line-height:1.2;}
+  .food-add-btn{background:var(--paper);color:var(--marigold-dark);border:1.5px solid var(--marigold);padding:9px 6px;border-radius:10px;font-weight:800;font-size:12.5px;letter-spacing:.4px;width:100%;}
 
   #cartBar{position:fixed;bottom:0;left:0;right:0;background:var(--teal);color:#fff;padding:14px 18px;display:none;align-items:center;justify-content:space-between;z-index:30;}
   #cartBar.show{display:flex;}
@@ -277,6 +287,7 @@
       <button class="filter-chip" data-f="under200" onclick="toggleFilter('under200',this)">Under ₹200</button>
     </div>
     <h3 class="section-title" id="menuAnchor">Popular Now</h3>
+    <div id="menuStatus" style="display:none;margin:0 18px 10px;padding:10px 12px;border-radius:10px;background:#FBDCDC;color:#8A1E1E;font-size:12px;font-weight:600;"></div>
     <div id="menuList" class="menu-grid"></div>
   </div>
 
@@ -355,10 +366,11 @@ let customerDoc = null;
    Edit this array to match your actual menu.
    sizes: optional [{label, price}] — first size is default
    addons: optional [{name, price}] — customer can toggle each on/off
-   serves: default "serves X" shown on the card — admin.html can override
-   this per item without touching code (see MENU_OVERRIDES below)
+   serves: "serves X" shown on the card
+   NOTE: this array is only the fallback. The real menu is managed from
+   admin.html > Menu tab and stored in Firestore ("menu" collection).
 */
-const MENU = [
+const DEFAULT_MENU = [
   {id:'m1', cat:'Starters', name:'Paneer Tikka', desc:'Char-grilled cottage cheese with smoky spices.', veg:true, emoji:'🧀', bg:'rgba(124,179,66,.18)', serves:'1-2',
     sizes:[{label:'Half',price:180},{label:'Full',price:320}],
     addons:[{name:'Extra Chutney',price:20},{name:'Extra Paneer',price:60}]},
@@ -378,20 +390,44 @@ const MENU = [
   {id:'m8', cat:'Beverages', name:'Cold Coffee', desc:'Chilled and frothy, topped with cream.', veg:true, emoji:'🥤', bg:'rgba(85,139,47,.14)', serves:'1',
     sizes:[{label:'Regular',price:90},{label:'Large',price:130}]},
 ];
+/* Live menu. Starts as the built-in defaults above; once the admin panel has
+   added dishes to Firestore ("menu" collection), those replace the defaults and
+   stay in sync in real time (add / edit / remove / mark unavailable). */
+let MENU = DEFAULT_MENU;
+const esc = s => String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
-/* ---------------- Menu overrides from admin (Firestore) ----------------
-   admin.html writes to menuOverrides/{itemId} with a {serves} field.
-   This merges those overrides into MENU before first render, so you can
-   change "Serves X" from the admin panel without editing this file. */
-async function loadMenuOverrides(){
-  if(!firebaseReady) return;
-  try{
-    const snap = await db.collection('menuOverrides').get();
-    snap.forEach(doc=>{
-      const item = MENU.find(m=>m.id===doc.id);
-      if(item && doc.data().serves) item.serves = doc.data().serves;
+/* ---------------- Live menu from admin (Firestore "menu" collection) ----------------
+   Resolves after the first snapshot (or on error) so the first render isn't blocked
+   forever. Later changes re-render automatically. If the collection is empty the
+   built-in DEFAULT_MENU is used. Items with available:false are hidden. */
+let menuListenerStarted = false;
+function setMenuStatus(msg){
+  const el = document.getElementById('menuStatus');
+  if(!el) return;
+  el.textContent = msg; el.style.display = msg ? 'block' : 'none';
+}
+function loadMenu(){
+  return new Promise(resolve=>{
+    if(!firebaseReady || menuListenerStarted){ resolve(); return; }
+    menuListenerStarted = true;
+    let first = true;
+    db.collection('menu').onSnapshot(snap=>{
+      setMenuStatus('');
+      if(snap.empty){
+        MENU = DEFAULT_MENU;
+      } else {
+        MENU = snap.docs.map(d=>({id:d.id, ...d.data()}))
+          .filter(m=>m.available !== false)
+          .sort((a,b)=>(a.order ?? 9999)-(b.order ?? 9999) || String(a.name).localeCompare(String(b.name)));
+      }
+      if(first){ first = false; resolve(); }
+      else { renderCategories(); renderMenu(); }
+    }, err=>{
+      console.warn('Menu not loaded from Firestore, using defaults:', err);
+      setMenuStatus('Admin ka menu load nahi ho paya ('+err.message+'). Firestore rules me /menu/{id} par read allow karo. Abhi default menu dikh raha hai.');
+      if(first){ first = false; resolve(); }
     });
-  } catch(err){ console.warn('Menu overrides not loaded:', err); }
+  });
 }
 const CAT_ICONS = {'Starters':'🍢','Main Course':'🍛','Breads':'🫓','Beverages':'🥤'};
 
@@ -448,8 +484,8 @@ if(firebaseReady){
 async function enterApp(){
   showScreen('app');
   document.getElementById('greetName').textContent = (customerDoc.name||'there').split(' ')[0];
+  await loadMenu();
   renderCategories();
-  await loadMenuOverrides();
   renderMenu();
   listenToMyOrders();
 }
@@ -531,17 +567,27 @@ async function confirmAddress(){
 }
 
 /* ---------------- Categories & grid ---------------- */
-let activeCat = null;
+const ALL_CAT = '__all';
+let activeCat = ALL_CAT;
 let activeFilters = {veg:false, under200:false};
 let favorites = new Set();
 function renderCategories(){
   const cats = [...new Set(MENU.map(m=>m.cat))];
-  document.getElementById('catBar').innerHTML = cats.map((c,i)=>`
-    <div class="cat-chip ${i===0?'active':''}" data-cat="${c}" onclick="filterCat('${c}',this)">
-      <div class="cat-icon">${CAT_ICONS[c]||'🍽️'}</div>
-      <span>${c}</span>
-    </div>`).join('');
-  activeCat = cats[0];
+  if(activeCat !== ALL_CAT && !cats.includes(activeCat)) activeCat = ALL_CAT;
+  const allChip = `
+    <div class="cat-chip ${activeCat===ALL_CAT?'active':''}" data-cat="${ALL_CAT}" onclick="filterCat(this.dataset.cat,this)">
+      <div class="cat-icon">🍽️</div>
+      <span>All</span>
+    </div>`;
+  document.getElementById('catBar').innerHTML = allChip + cats.map(c=>{
+    const first = MENU.find(m=>m.cat===c);
+    const icon = CAT_ICONS[c] || (first && first.emoji) || '🍽️';
+    return `
+    <div class="cat-chip ${c===activeCat?'active':''}" data-cat="${esc(c)}" onclick="filterCat(this.dataset.cat,this)">
+      <div class="cat-icon">${icon}</div>
+      <span>${esc(c)}</span>
+    </div>`;
+  }).join('');
 }
 function filterCat(cat, el){
   activeCat = cat;
@@ -564,7 +610,7 @@ function renderMenu(){
   const q = document.getElementById('searchBar').value.toLowerCase();
   let items = MENU;
   if(q) items = items.filter(m=>m.name.toLowerCase().includes(q));
-  else if(activeCat) items = items.filter(m=>m.cat===activeCat);
+  else if(activeCat && activeCat !== ALL_CAT) items = items.filter(m=>m.cat===activeCat);
   if(activeFilters.veg) items = items.filter(m=>m.veg);
   if(activeFilters.under200) items = items.filter(m=>itemMinPrice(m) <= 200);
   document.getElementById('menuList').innerHTML = items.map(m=>{
@@ -573,11 +619,11 @@ function renderMenu(){
     return `
     <div class="food-card" onclick="openItemDetail('${m.id}')">
       <div class="food-card-img-wrap">
-        <div class="food-card-img" style="background:${m.bg}">${m.emoji}</div>
+        <div class="food-card-img" style="background:${m.bg || 'rgba(124,179,66,.18)'}">${m.imageUrl ? `<img src="${esc(m.imageUrl)}" alt="" loading="lazy">` : esc(m.emoji || '🍽️')}</div>
         <div class="food-heart ${fav?'on':''}" onclick="toggleFavorite('${m.id}', event)">${fav?'♥':'♡'}</div>
       </div>
-      <div class="food-card-name">${m.name}</div>
-      ${m.serves ? `<div class="food-card-serves">🍽 Serves ${m.serves}</div>` : ''}
+      <div class="food-card-name">${esc(m.name)}</div>
+      <div class="food-card-serves">${m.serves ? '🍽 Serves '+esc(m.serves) : ''}</div>
       <div class="food-card-price-row">
         <div class="food-card-price">${priceLabel}</div>
         <button class="food-add-btn" onclick="event.stopPropagation(); openItemDetail('${m.id}')">ADD</button>
@@ -596,8 +642,12 @@ function openItemDetail(id){
   detailAddons = [];
   detailQtyVal = 1;
 
-  document.getElementById('detailHero').style.background = detailItem.bg;
-  document.getElementById('detailHero').textContent = detailItem.emoji;
+  const hero = document.getElementById('detailHero');
+  hero.style.background = detailItem.bg || 'rgba(124,179,66,.18)';
+  hero.style.overflow = 'hidden';
+  hero.innerHTML = detailItem.imageUrl
+    ? `<img src="${esc(detailItem.imageUrl)}" alt="" style="width:100%;height:100%;object-fit:cover">`
+    : esc(detailItem.emoji || '🍽️');
   document.getElementById('detailName').textContent = detailItem.name;
   document.getElementById('detailDesc').textContent = detailItem.desc || '';
   document.getElementById('detailServes').textContent = detailItem.serves ? `🍽 Serves ${detailItem.serves}` : '';
