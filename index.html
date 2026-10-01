@@ -280,6 +280,26 @@
   .promo-card.has-img .promo-tag,.promo-card.has-img h2{color:#fff;text-shadow:0 1px 8px rgba(0,0,0,.45);}
   .cat-icon{overflow:hidden;}
   .cat-icon img{width:100%;height:100%;object-fit:cover;display:block;}
+  #successOverlay{position:fixed;inset:0;background:var(--teal);color:#fff;display:none;z-index:80;align-items:center;justify-content:center;text-align:center;padding:24px;}
+  #successOverlay.show{display:flex;}
+  .succ-badge{width:96px;height:96px;border-radius:50%;background:#fff;margin:0 auto 22px;display:flex;align-items:center;justify-content:center;animation:succPop .45s cubic-bezier(.2,1.4,.4,1) both;}
+  .succ-badge svg{width:56px;height:56px;fill:none;stroke:var(--teal);stroke-width:5;stroke-linecap:round;stroke-linejoin:round;}
+  .succ-tick{stroke-dasharray:50;stroke-dashoffset:50;animation:succDraw .45s .35s ease forwards;}
+  @keyframes succPop{from{transform:scale(.4);opacity:0}to{transform:scale(1);opacity:1}}
+  @keyframes succDraw{to{stroke-dashoffset:0}}
+  .succ-title{font-size:28px;font-weight:800;}
+  .succ-sub{font-size:15px;font-weight:600;opacity:.92;margin-top:6px;}
+  .succ-note{font-size:13px;opacity:.8;margin-top:10px;}
+  .succ-btn{margin-top:26px;background:#fff;color:var(--teal);padding:13px 30px;border-radius:999px;font-weight:800;font-size:15px;}
+  .succ-wait{font-size:12px;opacity:.7;margin-top:14px;}
+  @media (prefers-reduced-motion:reduce){.succ-badge{animation:none}.succ-tick{animation:none;stroke-dashoffset:0}}
+  #rangeDrawer{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;z-index:60;}
+  #rangeDrawer.show{display:block;}
+  .rg-ic{width:64px;height:64px;border-radius:50%;background:#FBDCDC;color:var(--red);display:flex;align-items:center;justify-content:center;margin:0 auto 14px;}
+  .rg-ic .ic{width:30px;height:30px;}
+  .rg-msg{font-size:14px;color:#4a4235;line-height:1.5;margin:0 0 14px;}
+  .rg-label{font-size:12px;color:#6b5e4f;font-weight:700;margin-bottom:6px;}
+  .rg-call{display:inline-flex;gap:8px;align-items:center;background:var(--paper-2);color:var(--teal-dark);font-weight:800;font-size:17px;padding:11px 20px;border-radius:999px;text-decoration:none;margin-bottom:16px;}
 </style>
 </head>
 <body>
@@ -307,6 +327,7 @@
 <symbol id="i-bag" viewBox="0 0 24 24"><path d="M5 8h14l-1 12H6zM9 8V6a3 3 0 016 0v2"/></symbol>
 <symbol id="i-bike" viewBox="0 0 24 24"><circle cx="6" cy="17" r="3"/><circle cx="18" cy="17" r="3"/><path d="M6 17l3-7h4l3 7M9 10H7M13 10l-1-3h-2"/></symbol>
 <symbol id="i-home" viewBox="0 0 24 24"><path d="M4 11l8-7 8 7v9H4zM10 20v-6h4v6"/></symbol>
+<symbol id="i-phone" viewBox="0 0 24 24"><path d="M6 3h3l2 5-2.5 1.5a11 11 0 006 6L16 13l5 2v3a2 2 0 01-2 2A16 16 0 014 5a2 2 0 012-2z"/></symbol>
 </defs></svg>
 
 <!-- AUTH -->
@@ -320,7 +341,7 @@
     </button>
     <div id="testBypass" onclick="testBypassLogin()">Skip login (test mode)</div>
   </div>
-  <div class="foot">Bhukkadganj &middot; Sewak Park, Dwarka Mor</div>
+  <div class="foot">Bhukkadganj</div>
 </div>
 
 <!-- ADDRESS CAPTURE -->
@@ -357,10 +378,6 @@
   </nav>
 
   <div id="menuTab">
-    <div class="greet-row">
-      <div class="greet-hello">Hello, <span id="greetName">there</span>!</div>
-      <div class="greet-emoji"><svg class="ic " aria-hidden="true"><use href="#i-smile"/></svg></div>
-    </div>
     <div class="search-wrap">
       <span class="search-icon"><svg class="ic " aria-hidden="true"><use href="#i-search"/></svg></span>
       <input id="searchBar" placeholder="Search for delicious food...">
@@ -460,15 +477,35 @@
     <div class="f"><label>Full name *</label><input id="coName" type="text" autocomplete="name"></div>
     <div class="f"><label>Mobile number *</label><input id="coPhone" type="tel" inputmode="numeric" maxlength="10" placeholder="10-digit mobile number" autocomplete="tel"></div>
     <div class="f"><label>House / Flat / Floor no. *</label><input id="coHouse" type="text" placeholder="e.g. B-12, 2nd floor" autocomplete="address-line1"></div>
-    <div class="f"><label>Building / Street / Area *</label><input id="coArea" type="text" placeholder="e.g. Sewak Park, Dwarka Mor" autocomplete="address-line2"></div>
+    <div class="f"><label>Building / Street / Area *</label><input id="coArea" type="text" placeholder="e.g. Street, colony or area" autocomplete="address-line2"></div>
     <div class="f"><label>Landmark</label><input id="coLandmark" type="text" placeholder="e.g. Near Shiv Mandir"></div>
-    <div class="f-row">
-      <div class="f"><label>City *</label><input id="coCity" type="text" value="New Delhi" autocomplete="address-level2"></div>
-      <div class="f"><label>Pincode *</label><input id="coPin" type="text" inputmode="numeric" maxlength="6" placeholder="6 digits" autocomplete="postal-code"></div>
-    </div>
     <div class="f-err" id="coErr"></div>
     <div class="total-row"><span>To pay</span><span>₹<span id="coTotal">0</span></span></div>
     <button id="placeOrderBtn" onclick="placeOrder()">Place order</button>
+  </div>
+</div>
+
+<!-- ORDER PLACED -->
+<div id="successOverlay">
+  <div>
+    <div class="succ-badge"><svg viewBox="0 0 52 52"><path class="succ-tick" d="M14 27l8 8 16-17"/></svg></div>
+    <div class="succ-title">Order placed!</div>
+    <div class="succ-sub" id="succSub"></div>
+    <div class="succ-note">Aapka order Bhukkadganj ko mil gaya hai.</div>
+    <button class="succ-btn" onclick="goToOrders()">Track order</button>
+    <div class="succ-wait">My Orders par le ja rahe hain…</div>
+  </div>
+</div>
+
+<!-- OUT OF DELIVERY RANGE -->
+<div id="rangeDrawer">
+  <div class="sheet" style="text-align:center">
+    <div class="rg-ic"><svg class="ic" aria-hidden="true"><use href="#i-pin"/></svg></div>
+    <h3>Sorry! You are out of our delivery range</h3>
+    <p class="rg-msg" id="rangeMsg"></p>
+    <div id="rangeContact"></div>
+    <button class="btn-main" onclick="rangeChange()">Change location</button>
+    <button class="btn-out" style="color:var(--ink);border-color:var(--line)" onclick="closeRange()">Close</button>
   </div>
 </div>
 
@@ -631,7 +668,6 @@ if(firebaseReady){
 
 async function enterApp(){
   showScreen('app');
-  setUserName(customerDoc.name);
   listenBanner();
   listenCategories();
   await loadMenu();
@@ -640,11 +676,6 @@ async function enterApp(){
   listenToMyOrders();
 }
 
-function setUserName(full){
-  const n = (full||'').trim();
-  document.getElementById('greetName').textContent = n.split(' ')[0] || 'there';
-  document.getElementById('hdrName').textContent = n || 'Bhukkadganj';
-}
 /* Banner (photo + text) is managed from admin.html > Banner tab -> Firestore settings/banner */
 let bannerStarted = false;
 function listenBanner(){
@@ -680,7 +711,7 @@ function listenBanner(){
 function latestAddress(){ return (customerDoc && customerDoc.addresses && customerDoc.addresses[customerDoc.addresses.length-1]) || pendingAddress; }
 function addrText(a){
   if(!a) return 'Abhi koi address save nahi hai.';
-  return [a.house, a.area, a.landmark?('Landmark: '+a.landmark):'', [a.city,a.pincode].filter(Boolean).join(' - ')].filter(Boolean).map(esc).join('<br>') || 'Map pin set hai, poora address checkout par bharo.';
+  return [a.house, a.area, a.landmark?('Landmark: '+a.landmark):''].filter(Boolean).map(esc).join('<br>') || 'Map pin set hai, poora address checkout par bharo.';
 }
 function openProfile(){
   const name = customerDoc.name || (currentUser && currentUser.displayName) || '';
@@ -711,7 +742,6 @@ async function saveProfile(){
   if(!name){ err.textContent='Naam daalo.'; err.style.display='block'; return; }
   if(phone && !PHONE_RE.test(phone)){ err.textContent='Sahi 10-digit mobile number daalo.'; err.style.display='block'; return; }
   await persistCustomer({name, phone});
-  setUserName(name);
   closeProfile();
 }
 let ordersUnsub = null;
@@ -727,18 +757,35 @@ async function logout(){
 }
 
 /* ---------------- Checkout details ---------------- */
-function startCheckout(){
+async function startCheckout(){
   if(Object.keys(cart).length===0){ alert('Cart khali hai'); return; }
   const a = latestAddress() || {};
+  if(a.lat!=null){
+    const chk = await checkRange(a.lat, a.lng);
+    if(!chk.ok){ closeCart(); showOutOfRange(chk); return; }
+  }
   const set = (id,v)=>{ document.getElementById(id).value = v || ''; };
   set('coName', customerDoc.name || (currentUser && currentUser.displayName));
   set('coPhone', customerDoc.phone);
   set('coHouse', a.house); set('coArea', a.area); set('coLandmark', a.landmark);
-  set('coCity', a.city || 'New Delhi'); set('coPin', a.pincode);
   document.getElementById('coErr').style.display = 'none';
   document.getElementById('coTotal').textContent = cartSubtotal() + DELIVERY_FEE;
   closeCart();
   document.getElementById('checkoutDrawer').classList.add('show');
+}
+let succTimer = null;
+function showSuccess(id, total){
+  document.getElementById('succSub').textContent = 'Order #' + id.slice(-6).toUpperCase() + ' · ₹' + total;
+  document.getElementById('successOverlay').classList.add('show');
+  clearTimeout(succTimer);
+  succTimer = setTimeout(goToOrders, 2800);
+}
+function goToOrders(){
+  clearTimeout(succTimer);
+  document.getElementById('successOverlay').classList.remove('show');
+  closeCheckout();
+  showTab('orders');
+  window.scrollTo(0,0);
 }
 function closeCheckout(){ document.getElementById('checkoutDrawer').classList.remove('show'); }
 
@@ -799,9 +846,40 @@ function locateMe(){
   }, {enableHighAccuracy:true, timeout:10000});
 }
 
+/* ---------------- Delivery radius (admin.html > Delivery tab -> settings/delivery) ---------------- */
+function distKm(lat1,lng1,lat2,lng2){
+  const R = 6371, rad = d=>d*Math.PI/180;
+  const a = Math.sin(rad(lat2-lat1)/2)**2 + Math.cos(rad(lat1))*Math.cos(rad(lat2))*Math.sin(rad(lng2-lng1)/2)**2;
+  return 2*R*Math.asin(Math.sqrt(a));
+}
+async function checkRange(lat,lng){
+  if(!firebaseReady || lat==null || lng==null) return {ok:true};
+  try{
+    const d = await db.collection('settings').doc('delivery').get();
+    if(!d.exists) return {ok:true};
+    const c = d.data();
+    if(typeof c.lat!=='number' || typeof c.lng!=='number' || !(c.radiusKm>0)) return {ok:true};
+    const km = distKm(lat,lng,c.lat,c.lng);
+    return km <= c.radiusKm ? {ok:true, km} : {ok:false, km, radius:c.radiusKm, phone:c.phone||''};
+  } catch(e){ console.warn('Delivery range not checked:', e); return {ok:true}; }
+}
+function showOutOfRange(chk){
+  document.getElementById('rangeMsg').innerHTML = `Aapka location hamare outlet se <b>${chk.km.toFixed(1)} km</b> door hai. Hum abhi sirf <b>${chk.radius} km</b> ke andar deliver karte hain.`;
+  document.getElementById('rangeContact').innerHTML = chk.phone
+    ? `<div class="rg-label">Kisi bhi query ke liye contact karo</div><a class="rg-call" href="tel:${esc(chk.phone)}">${ic('phone')} ${esc(chk.phone)}</a>` : '';
+  document.getElementById('rangeDrawer').classList.add('show');
+}
+function closeRange(){ document.getElementById('rangeDrawer').classList.remove('show'); }
+function rangeChange(){
+  closeRange();
+  if(!document.getElementById('addressScreen').classList.contains('active')) changeAddress();
+}
+
 async function confirmAddress(){
   const pos = marker.getPosition();
   const addr = {lat: pos.lat(), lng: pos.lng(), label: selectedLabel, id: Date.now().toString()};
+  const chk = await checkRange(addr.lat, addr.lng);
+  if(!chk.ok){ showOutOfRange(chk); return; }
   if(firebaseReady){
     try{
       await db.collection('customers').doc(currentUser.uid).update({
@@ -1043,16 +1121,16 @@ async function placeOrder(){
   const v = id => document.getElementById(id).value.trim();
   const fail = m => { const e=document.getElementById('coErr'); e.textContent=m; e.style.display='block'; };
   const name=v('coName'), phone=v('coPhone').replace(/\s/g,''), house=v('coHouse'), area=v('coArea'),
-        landmark=v('coLandmark'), city=v('coCity'), pincode=v('coPin');
+        landmark=v('coLandmark');
   if(!name) return fail('Naam daalo.');
   if(!PHONE_RE.test(phone)) return fail('Sahi 10-digit mobile number daalo.');
   if(!house) return fail('House / flat number daalo.');
   if(!area) return fail('Building / street / area daalo.');
-  if(!city) return fail('City daalo.');
-  if(!/^\d{6}$/.test(pincode)) return fail('6-digit pincode daalo.');
   const base = latestAddress();
   if(!base){ closeCheckout(); alert('Pehle delivery location set karo.'); changeAddress(); return; }
-  const address = {...base, house, area, landmark, city, pincode};
+  const chk = await checkRange(base.lat, base.lng);
+  if(!chk.ok){ closeCheckout(); showOutOfRange(chk); return; }
+  const address = {...base, house, area, landmark};
 
   const items = entries.map(e=>({name:e.name, size:e.size, addons:e.addons, qty:e.qty, price:e.unitPrice}));
   const subtotal = cartSubtotal();
@@ -1060,8 +1138,9 @@ async function placeOrder(){
   const total = subtotal + deliveryFee;
   const btn = document.getElementById('placeOrderBtn');
   btn.disabled = true; btn.textContent = 'Placing…';
+  let ref;
   try{
-    await db.collection('orders').add({
+    ref = await db.collection('orders').add({
       customerUid: currentUser.uid,
       customerName: name,
       phone,
@@ -1082,13 +1161,10 @@ async function placeOrder(){
   const addrs = (customerDoc.addresses||[]).slice(); addrs[Math.max(addrs.length-1,0)] = address;
   await persistCustomer({name, phone, addresses: addrs});
   pendingAddress = address;
-  setUserName(name);
 
   cart = {};
   updateCartBar();
-  closeCheckout();
-  showTab('orders');
-  alert('Order place ho gaya! Track karo "My Orders" me.');
+  showSuccess(ref.id, total);
 }
 
 /* Orders are read with a single where() and sorted here — an orderBy on a second
@@ -1140,7 +1216,7 @@ function orderCard(o){
     return `<div class="o-item"><div>${esc(i.name)} × ${i.qty}${sub?`<small>${sub}</small>`:''}</div><div>₹${i.price*i.qty}</div></div>`;
   }).join('');
   const a = o.address || {};
-  const addr = [a.house, a.area, a.landmark?('Landmark: '+a.landmark):'', [a.city,a.pincode].filter(Boolean).join(' - ')].filter(Boolean).map(esc).join('<br>');
+  const addr = [a.house, a.area, a.landmark?('Landmark: '+a.landmark):''].filter(Boolean).map(esc).join('<br>');
   return `
   <div class="o-card">
     <div class="o-head">
