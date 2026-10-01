@@ -116,6 +116,10 @@
   .empty-box button{margin-top:12px;}
 
   /* ---- Edit modal ---- */
+  #catModal{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;z-index:50;align-items:flex-start;justify-content:center;overflow-y:auto;padding:20px 12px;}
+  #catModal.show{display:flex;}
+  .cat-count{font-size:12px;color:#6b5e4f;margin-top:2px;}
+  .mv{width:30px;padding:6px 0;}
   #itemModal{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;z-index:50;align-items:flex-start;justify-content:center;overflow-y:auto;padding:20px 12px;}
   #itemModal.show{display:flex;}
   .modal-card{background:#fff;border-radius:16px;width:100%;max-width:560px;padding:20px;margin:auto 0;}
@@ -136,6 +140,7 @@
   .modal-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:16px;}
   .ic{width:1.15em;height:1.15em;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;vertical-align:-.2em;flex-shrink:0;}
   .menu-thumb .ic{width:24px;height:24px;color:var(--teal);}
+  .banner-prev{height:150px;border-radius:14px;background:linear-gradient(135deg,#7CB342,#558B2F);background-size:cover;background-position:center;margin-bottom:12px;}
   .photo-box{display:flex;gap:14px;align-items:center;}
   .photo-prev{width:84px;height:84px;border-radius:12px;background:var(--paper-2);display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0;}
   .photo-prev img{width:100%;height:100%;object-fit:cover;}
@@ -185,6 +190,8 @@
   <div class="filter-bar" style="margin-bottom:10px">
     <button class="active" data-tab="orders" onclick="setTab('orders',this)">Orders</button>
     <button data-tab="menu" onclick="setTab('menu',this)">Menu</button>
+    <button data-tab="categories" onclick="setTab('categories',this)">Categories</button>
+    <button data-tab="banner" onclick="setTab('banner',this)">Banner</button>
   </div>
 
   <div id="ordersPane">
@@ -200,12 +207,56 @@
   <div id="ordersList"></div>
   </div>
 
+  <div id="catPane" style="display:none">
+    <div class="menu-toolbar">
+      <p>Category add, rename, photo/icon badlo ya delete karo. Photo customer app ke category chip mein dikhti hai.</p>
+      <button class="btn-primary" onclick="openCatForm(null)">+ Add category</button>
+    </div>
+    <div id="catList"></div>
+  </div>
+
+  <div id="bannerPane" style="display:none">
+    <p style="font-size:13px;color:#6b5e4f;margin:0 0 12px">Customer app ke green banner ki photo aur text yahan se badlo. Wide photo (jaise 1200 × 500) sabse achhi lagti hai.</p>
+    <div class="banner-prev" id="bannerPrev"></div>
+    <label class="btn-ghost up-btn"><svg class="ic" aria-hidden="true"><use href="#i-upload"/></svg> Upload banner photo<input type="file" id="bFile" accept="image/*" hidden onchange="onBanner(this)"></label>
+    <button type="button" class="btn-danger" onclick="clearBanner()">Remove photo</button>
+    <div class="fld" style="margin-top:14px"><label>Small tag (khaali = hide)</label><input type="text" id="bTag" maxlength="30"></div>
+    <div class="fld"><label>Headline (nayi line ke liye Enter; khaali = hide)</label><textarea id="bTitle" maxlength="80"></textarea></div>
+    <div class="fld"><label>Button text (khaali = hide)</label><input type="text" id="bBtn" maxlength="20"></div>
+    <button class="btn-primary" id="bSaveBtn" onclick="saveBanner()">Save banner</button>
+    <div id="bannerMsg" style="font-size:13px;font-weight:600;margin-top:10px"></div>
+  </div>
+
   <div id="menuPane" style="display:none">
     <div class="menu-toolbar">
       <p>Yahan se dish add, edit ya delete karo — customer app me turant update ho jaata hai.</p>
       <button class="btn-primary" onclick="openItemForm(null)">+ Add item</button>
     </div>
     <div id="menuEditList"></div>
+  </div>
+</div>
+
+<!-- CATEGORY MODAL -->
+<div id="catModal" class="modal-bg">
+  <div class="modal-card">
+    <h3 id="catModalTitle">Add category</h3>
+    <div class="fld"><label>Category name *</label><input type="text" id="cName" maxlength="30" placeholder="e.g. Starters"></div>
+    <div class="fld"><label>Category photo</label>
+      <div class="photo-box">
+        <div class="photo-prev" id="cPrev"></div>
+        <div>
+          <label class="btn-ghost up-btn"><svg class="ic" aria-hidden="true"><use href="#i-upload"/></svg> Upload photo<input type="file" id="cFile" accept="image/*" hidden onchange="onCatPhoto(this)"></label>
+          <button type="button" class="btn-danger" onclick="catPhoto='';paintCat()">Remove</button>
+          <div class="hint">Square photo best rehti hai.</div>
+        </div>
+      </div>
+    </div>
+    <div class="fld"><label>Icon (photo na ho tab dikhega)</label><div class="icon-pick" id="cPick"></div></div>
+    <div id="catErr" style="color:var(--red);font-size:13px;font-weight:600;display:none"></div>
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="closeCatForm()">Cancel</button>
+      <button class="btn-primary" id="catSaveBtn" onclick="saveCategory()">Save</button>
+    </div>
   </div>
 </div>
 
@@ -360,7 +411,173 @@ function setTab(tab, el){
   el.classList.add('active');
   document.getElementById('ordersPane').style.display = tab==='orders' ? 'block' : 'none';
   document.getElementById('menuPane').style.display = tab==='menu' ? 'block' : 'none';
-  document.getElementById('dashTitle').textContent = tab==='orders' ? 'Orders' : 'Menu';
+  document.getElementById('bannerPane').style.display = tab==='banner' ? 'block' : 'none';
+  document.getElementById('catPane').style.display = tab==='categories' ? 'block' : 'none';
+  document.getElementById('dashTitle').textContent = {orders:'Orders',menu:'Menu',categories:'Categories',banner:'Banner'}[tab];
+}
+
+/* ---------------- Categories ("categories" collection) ----------------
+   A category is managed once it has a document (name, photo, icon, order). Categories that
+   only exist because dishes use them are shown too and become managed on first save. */
+let catDocs = [];
+let catEditing = null, catPhoto = '', catIcon = '';
+function catList(){
+  const docs = catDocs.slice().sort((a,b)=>(a.order ?? 9999)-(b.order ?? 9999) || String(a.name).localeCompare(String(b.name)));
+  const names = new Set(docs.map(d=>d.name));
+  const extra = [...new Set(menuItems.map(m=>m.cat))].filter(c=>c && !names.has(c)).map(c=>({name:c}));
+  return [...docs, ...extra];
+}
+function listenCats(){
+  db.collection('categories').onSnapshot(snap=>{
+    catDocs = snap.docs.map(d=>({id:d.id, ...d.data()}));
+    renderCats();
+  }, err=>{ document.getElementById('catList').innerHTML = `<div class="empty-box">Categories load nahi hui: ${esc(err.message)}<br>Rules me <b>/categories/{id}</b> allow karo.</div>`; });
+}
+function renderCats(){
+  const rows = catList();
+  const box = document.getElementById('catList');
+  if(!box) return;
+  if(!rows.length){ box.innerHTML = `<div class="empty-box">Abhi koi category nahi. "+ Add category" dabao.</div>`; return; }
+  box.innerHTML = rows.map((r,i)=>{
+    const n = menuItems.filter(m=>m.cat===r.name).length;
+    const thumb = r.imageData ? `<img src="${esc(r.imageData)}" alt="">` : ic(DISH_ICONS.includes(r.icon) ? r.icon : (CAT_ICONS[r.name] || 'utensils'));
+    return `<div class="menu-edit-row">
+      <div class="menu-edit-info"><div class="menu-thumb">${thumb}</div>
+        <div><div class="menu-edit-name">${esc(r.name)}</div><div class="cat-count">${n} dish${n===1?'':'es'}</div></div></div>
+      <div class="menu-edit-controls">
+        <button class="btn-ghost mv" ${i===0?'disabled':''} onclick="moveCat(${i},-1)" aria-label="Up">&#9650;</button>
+        <button class="btn-ghost mv" ${i===rows.length-1?'disabled':''} onclick="moveCat(${i},1)" aria-label="Down">&#9660;</button>
+        <button class="btn-ghost" onclick="openCatForm(${i})">Edit</button>
+        <button class="btn-danger" onclick="deleteCat(${i})">Delete</button>
+      </div></div>`;
+  }).join('');
+}
+function paintCat(){
+  document.getElementById('cPrev').innerHTML = catPhoto ? `<img src="${esc(catPhoto)}" alt="">` : ic(DISH_ICONS.includes(catIcon) ? catIcon : 'utensils');
+  document.getElementById('cPick').innerHTML = DISH_ICONS.map(n=>`<button type="button" class="${n===catIcon?'sel':''}" onclick="catIcon='${n}';paintCat()" aria-label="${n}">${ic(n)}</button>`).join('');
+}
+function openCatForm(i){
+  const r = i==null ? null : catList()[i];
+  catEditing = r;
+  document.getElementById('catModalTitle').textContent = r ? 'Edit category' : 'Add category';
+  document.getElementById('cName').value = r ? r.name : '';
+  catPhoto = r ? (r.imageData||'') : '';
+  catIcon = r ? (r.icon||CAT_ICONS[r.name]||'') : '';
+  document.getElementById('catErr').style.display = 'none';
+  paintCat();
+  document.getElementById('catModal').classList.add('show');
+}
+function closeCatForm(){ document.getElementById('catModal').classList.remove('show'); }
+function onCatPhoto(inp){
+  const f = inp.files[0]; if(!f) return;
+  const r = new FileReader();
+  r.onload = e => {
+    const img = new Image();
+    img.onload = () => {
+      const side = Math.min(img.width, img.height), out = 360;     // centre-crop to a square
+      const c = document.createElement('canvas'); c.width = c.height = out;
+      const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0,0,out,out);
+      x.drawImage(img, (img.width-side)/2, (img.height-side)/2, side, side, 0, 0, out, out);
+      catPhoto = c.toDataURL('image/jpeg', 0.8); paintCat();
+    };
+    img.src = e.target.result;
+  };
+  r.readAsDataURL(f); inp.value = '';
+}
+function catFail(m){ const e = document.getElementById('catErr'); e.textContent = m; e.style.display = 'block'; }
+async function saveCategory(){
+  const name = document.getElementById('cName').value.trim();
+  if(!name) return catFail('Category ka naam daalo.');
+  const rows = catList(), old = catEditing;
+  if(rows.some(r=>r.name.toLowerCase()===name.toLowerCase() && (!old || r.name!==old.name))) return catFail('Ye category pehle se hai.');
+  const btn = document.getElementById('catSaveBtn'); btn.disabled = true; btn.textContent = 'Saving…';
+  try{
+    const col = db.collection('categories'), batch = db.batch();
+    const idx = old ? rows.findIndex(r=>r.name===old.name) : rows.length;
+    // adopt unmanaged categories so the current order is kept
+    rows.forEach((r,i)=>{ if(!r.id && !(old && r.name===old.name)) batch.set(col.doc('c'+Date.now()+'_'+i), {name:r.name, order:i}); });
+    batch.set(col.doc(old && old.id ? old.id : 'c'+Date.now()), {name, imageData:catPhoto, icon:catIcon, order: old && old.order!=null ? old.order : idx});
+    if(old && old.name!==name) menuItems.filter(m=>m.cat===old.name).forEach(m=>batch.update(db.collection('menu').doc(m.id), {cat:name}));
+    await batch.commit();
+    closeCatForm();
+  } catch(err){ catFail('Save nahi hua: '+err.message); }
+  finally{ btn.disabled = false; btn.textContent = 'Save'; }
+}
+async function deleteCat(i){
+  const r = catList()[i]; if(!r) return;
+  const n = menuItems.filter(m=>m.cat===r.name).length;
+  if(n){ alert(`"${r.name}" me ${n} dish hain. Pehle unhe doosri category me daalo ya delete karo, phir category delete karo.`); return; }
+  if(!r.id) return;
+  if(!confirm(`Category "${r.name}" delete karni hai?`)) return;
+  try{ await db.collection('categories').doc(r.id).delete(); } catch(err){ alert('Delete nahi hua: '+err.message); }
+}
+async function moveCat(i, dir){
+  const rows = catList(), j = i+dir;
+  if(j<0 || j>=rows.length) return;
+  [rows[i], rows[j]] = [rows[j], rows[i]];
+  try{
+    const batch = db.batch();
+    rows.forEach((r,k)=>batch.set(db.collection('categories').doc(r.id || ('c'+Date.now()+'_'+k)), {name:r.name, imageData:r.imageData||'', icon:r.icon||'', order:k}));
+    await batch.commit();
+  } catch(err){ alert('Order change nahi hua: '+err.message); }
+}
+document.getElementById('catModal').addEventListener('click', e=>{ if(e.target.id==='catModal') closeCatForm(); });
+
+/* ---------------- Banner (settings/banner) ---------------- */
+let bannerImg = '';
+function paintBanner(){ document.getElementById('bannerPrev').style.backgroundImage = bannerImg ? 'url("'+bannerImg+'")' : ''; }
+function clearBanner(){ bannerImg = ''; paintBanner(); }
+function onBanner(inp){
+  const f = inp.files[0]; if(!f) return;
+  const r = new FileReader();
+  r.onload = e => {
+    const img = new Image();
+    img.onload = () => {
+      let max = 1400, q = 0.82, out = '';
+      for(let i=0;i<6;i++){
+        const sc = Math.min(1, max/Math.max(img.width,img.height));
+        const c = document.createElement('canvas');
+        c.width = Math.round(img.width*sc); c.height = Math.round(img.height*sc);
+        const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0,0,c.width,c.height);
+        x.drawImage(img,0,0,c.width,c.height);
+        out = c.toDataURL('image/jpeg', q);
+        if(out.length < 450000) break;
+        max *= 0.8; q -= 0.07;
+      }
+      bannerImg = out; paintBanner();
+    };
+    img.onerror = () => { document.getElementById('bannerMsg').textContent = 'Ye image open nahi hui, doosri try karo.'; };
+    img.src = e.target.result;
+  };
+  r.readAsDataURL(f); inp.value = '';
+}
+function listenBanner(){
+  let filled = false;
+  db.collection('settings').doc('banner').onSnapshot(doc=>{
+    if(filled) return; filled = true;           // fill the form once; don't overwrite what you're typing
+    const b = doc.exists ? doc.data() : {};
+    bannerImg = b.imageData || '';
+    document.getElementById('bTag').value = b.tag !== undefined ? b.tag : 'SUPER DELICIOUS';
+    document.getElementById('bTitle').value = b.title !== undefined ? b.title : 'Fresh Food,\nDelivered Fast';
+    document.getElementById('bBtn').value = b.btn !== undefined ? b.btn : 'Order Now';
+    paintBanner();
+  }, err=>{ document.getElementById('bannerMsg').textContent = 'Banner load nahi hua: '+err.message+' (rules me /settings/{id} allow karo)'; });
+}
+async function saveBanner(){
+  const btn = document.getElementById('bSaveBtn'), msg = document.getElementById('bannerMsg');
+  btn.disabled = true; btn.textContent = 'Saving…'; msg.style.color = '';
+  try{
+    await db.collection('settings').doc('banner').set({
+      imageData: bannerImg,
+      tag: document.getElementById('bTag').value.trim(),
+      title: document.getElementById('bTitle').value.trim(),
+      btn: document.getElementById('bBtn').value.trim(),
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    msg.style.color = 'var(--green)'; msg.textContent = 'Banner save ho gaya — customer app me turant dikhega.';
+  } catch(err){
+    msg.style.color = 'var(--red)'; msg.textContent = 'Save nahi hua: '+err.message;
+  } finally { btn.disabled = false; btn.textContent = 'Save banner'; }
 }
 
 function listenMenu(){
@@ -369,6 +586,7 @@ function listenMenu(){
       .sort((a,b)=>(a.order ?? 9999)-(b.order ?? 9999) || String(a.name).localeCompare(String(b.name)));
     menuLoaded = true; menuLoadError = '';
     renderMenuTab();
+    renderCats();
   }, err=>{
     console.error(err);
     menuLoaded = true;
@@ -495,7 +713,7 @@ function openItemForm(id){
   document.getElementById('fUseSizes').checked = hasSizes;
   if(hasSizes) m.sizes.forEach(s=>addSizeRow(s.label, s.price));
   if(m && m.addons) m.addons.forEach(a=>addAddonRow(a.name, a.price));
-  document.getElementById('catList').innerHTML = [...new Set(menuItems.map(x=>x.cat))].map(c=>`<option value="${esc(c)}">`).join('');
+  document.getElementById('catList').innerHTML = catList().map(c=>c.name).map(c=>`<option value="${esc(c)}">`).join('');
   toggleSizes();
   document.getElementById('formError').style.display = 'none';
   document.getElementById('itemModal').classList.add('show');
@@ -570,6 +788,8 @@ function initFirebaseAndListen(){
   firebase.initializeApp(FIREBASE_CONFIG);
   db = firebase.firestore();
   listenMenu();
+  listenCats();
+  listenBanner();
   db.collection('orders').orderBy('createdAt','desc').onSnapshot(snap=>{
     allOrders = snap.docs.map(d=>({id:d.id, ref:d.ref, ...d.data()}));
     renderStats();
