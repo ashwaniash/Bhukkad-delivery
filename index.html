@@ -27,6 +27,10 @@
            allow create: if request.auth != null && request.resource.data.customerUid == request.auth.uid;
            allow update: if true; // admin.html updates status — see note in that file
          }
+         match /menuOverrides/{itemId} {
+           allow read: if true;
+           allow write: if true; // admin.html's Menu tab writes here (PIN-gated, no Firebase Auth)
+         }
        }
      }
 ============================================================ -->
@@ -45,7 +49,7 @@
 </script>
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Work+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
@@ -53,16 +57,17 @@
 
 <style>
   :root{
-    --ink:#241A16; --paper:#FFF7EA; --paper-2:#F3E8D3;
-    --marigold:#E3A008; --marigold-dark:#B87F06;
-    --teal:#0F5C5C; --teal-dark:#0A4444;
-    --line:#E4D6BC; --red:#B3261E;
+    --ink:#1A1D16; --paper:#FFFFFF; --paper-2:#EEF4E4;
+    --marigold:#7CB342; --marigold-dark:#558B2F;
+    --teal:#33691E; --teal-dark:#1B5E20;
+    --line:#E4E9DC; --red:#B3261E;
     --radius:16px;
   }
   *{box-sizing:border-box;}
-  body{margin:0;background:var(--paper);color:var(--ink);font-family:'Plus Jakarta Sans',sans-serif;-webkit-font-smoothing:antialiased;}
-  h1,h2,h3,.brand,.section-title,.detail-name{font-family:'Baloo 2',sans-serif;}
-  .screen{min-height:100vh;display:none;flex-direction:column;}
+  html,body{height:100%;}
+  body{margin:0;background:var(--paper);color:var(--ink);font-family:'Work Sans',sans-serif;-webkit-font-smoothing:antialiased;}
+  h1,h2,h3,.brand,.section-title,.detail-name{font-family:'Work Sans',sans-serif;font-weight:800;}
+  .screen{min-height:100vh;height:100vh;display:none;flex-direction:column;}
   .screen.active{display:flex;}
   button{font-family:inherit;cursor:pointer;border:none;}
   input{font-family:inherit;}
@@ -124,11 +129,21 @@
   .cat-chip span{font-size:11px;font-weight:600;color:#6b5e4f;}
   .cat-chip.active span{color:var(--ink);font-weight:700;}
 
-  .menu-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:6px 18px 110px;}
-  .food-card{background:#fff;border:1px solid var(--line);border-radius:18px;padding:10px;}
-  .food-card-img{height:84px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:38px;margin-bottom:8px;}
-  .food-card-name{font-weight:700;font-size:14px;margin-bottom:2px;}
-  .food-card-price{font-size:13px;color:#6b5e4f;font-weight:600;}
+  .filter-chip-row{display:flex;gap:8px;padding:4px 18px 0;}
+  .filter-chip{padding:8px 14px;border-radius:999px;background:var(--paper-2);font-size:12px;font-weight:700;color:var(--teal);border:1.5px solid transparent;}
+  .filter-chip.active{background:var(--marigold);color:#fff;border-color:var(--marigold);}
+
+  .menu-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;padding:6px 14px 110px;}
+  .food-card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:8px;position:relative;}
+  .food-card-img-wrap{position:relative;margin-bottom:6px;}
+  .food-card-img{aspect-ratio:1/1;width:78%;margin:0 auto;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:26px;}
+  .food-heart{position:absolute;top:2px;right:2px;width:20px;height:20px;border-radius:50%;background:rgba(255,255,255,.9);display:flex;align-items:center;justify-content:center;font-size:11px;box-shadow:0 2px 6px rgba(0,0,0,.12);}
+  .food-heart.on{color:var(--red);}
+  .food-card-name{font-weight:700;font-size:11.5px;line-height:1.25;margin-bottom:2px;min-height:28px;}
+  .food-card-serves{font-size:9.5px;color:#8a9a7a;font-weight:600;margin-bottom:4px;}
+  .food-card-price-row{display:flex;flex-direction:column;gap:5px;align-items:stretch;}
+  .food-card-price{font-size:12px;color:#6b5e4f;font-weight:700;}
+  .food-add-btn{background:var(--paper);color:var(--marigold-dark);border:1.5px solid var(--marigold);padding:4px 6px;border-radius:7px;font-weight:800;font-size:10px;letter-spacing:.3px;width:100%;}
 
   #cartBar{position:fixed;bottom:0;left:0;right:0;background:var(--teal);color:#fff;padding:14px 18px;display:none;align-items:center;justify-content:space-between;z-index:30;}
   #cartBar.show{display:flex;}
@@ -257,6 +272,10 @@
     </div>
     <h3 class="section-title">Popular Categories</h3>
     <div id="catBar"></div>
+    <div id="filterBar" class="filter-chip-row">
+      <button class="filter-chip" data-f="veg" onclick="toggleFilter('veg',this)">🌱 Veg Only</button>
+      <button class="filter-chip" data-f="under200" onclick="toggleFilter('under200',this)">Under ₹200</button>
+    </div>
     <h3 class="section-title" id="menuAnchor">Popular Now</h3>
     <div id="menuList" class="menu-grid"></div>
   </div>
@@ -278,6 +297,7 @@
     <div id="detailHero" class="detail-hero"></div>
     <div class="detail-name" id="detailName"></div>
     <p class="detail-desc" id="detailDesc"></p>
+    <div id="detailServes" class="food-card-serves" style="margin-bottom:10px"></div>
     <div id="detailSizeSection"></div>
     <div id="detailAddonSection"></div>
     <div class="detail-footer">
@@ -335,27 +355,44 @@ let customerDoc = null;
    Edit this array to match your actual menu.
    sizes: optional [{label, price}] — first size is default
    addons: optional [{name, price}] — customer can toggle each on/off
+   serves: default "serves X" shown on the card — admin.html can override
+   this per item without touching code (see MENU_OVERRIDES below)
 */
 const MENU = [
-  {id:'m1', cat:'Starters', name:'Paneer Tikka', desc:'Char-grilled cottage cheese with smoky spices.', veg:true, emoji:'🧀', bg:'rgba(227,160,8,.16)',
+  {id:'m1', cat:'Starters', name:'Paneer Tikka', desc:'Char-grilled cottage cheese with smoky spices.', veg:true, emoji:'🧀', bg:'rgba(124,179,66,.18)', serves:'1-2',
     sizes:[{label:'Half',price:180},{label:'Full',price:320}],
     addons:[{name:'Extra Chutney',price:20},{name:'Extra Paneer',price:60}]},
-  {id:'m2', cat:'Starters', name:'Chicken Seekh Kebab', desc:'Minced chicken skewers roasted over coal.', veg:false, emoji:'🍢', bg:'rgba(15,92,92,.12)',
+  {id:'m2', cat:'Starters', name:'Chicken Seekh Kebab', desc:'Minced chicken skewers roasted over coal.', veg:false, emoji:'🍢', bg:'rgba(85,139,47,.14)', serves:'1-2',
     sizes:[{label:'Half',price:220},{label:'Full',price:400}],
     addons:[{name:'Extra Mint Chutney',price:20}]},
-  {id:'m3', cat:'Main Course', name:'Butter Chicken', desc:'Creamy tomato gravy, slow-cooked chicken.', veg:false, emoji:'🍛', bg:'rgba(227,160,8,.16)',
+  {id:'m3', cat:'Main Course', name:'Butter Chicken', desc:'Creamy tomato gravy, slow-cooked chicken.', veg:false, emoji:'🍛', bg:'rgba(124,179,66,.18)', serves:'2-3',
     sizes:[{label:'Half',price:260},{label:'Full',price:460}],
     addons:[{name:'Extra Butter',price:30},{name:'Extra Gravy',price:40}]},
-  {id:'m4', cat:'Main Course', name:'Dal Makhani', desc:'Black lentils simmered overnight with butter.', veg:true, emoji:'🍲', bg:'rgba(15,92,92,.12)',
+  {id:'m4', cat:'Main Course', name:'Dal Makhani', desc:'Black lentils simmered overnight with butter.', veg:true, emoji:'🍲', bg:'rgba(85,139,47,.14)', serves:'2-3',
     addons:[{name:'Extra Butter',price:20}]},
-  {id:'m5', cat:'Main Course', name:'Veg Biryani', desc:'Fragrant basmati rice with garden vegetables.', veg:true, emoji:'🍚', bg:'rgba(227,160,8,.16)',
+  {id:'m5', cat:'Main Course', name:'Veg Biryani', desc:'Fragrant basmati rice with garden vegetables.', veg:true, emoji:'🍚', bg:'rgba(124,179,66,.18)', serves:'1-2',
     sizes:[{label:'Half',price:190},{label:'Full',price:340}],
     addons:[{name:'Raita',price:30},{name:'Extra Gravy',price:30}]},
-  {id:'m6', cat:'Breads', name:'Butter Naan', desc:'Soft tandoor-baked bread brushed with butter.', veg:true, emoji:'🫓', bg:'rgba(15,92,92,.12)'},
-  {id:'m7', cat:'Beverages', name:'Masala Chai', desc:'Classic spiced milk tea.', veg:true, emoji:'🍵', bg:'rgba(227,160,8,.16)'},
-  {id:'m8', cat:'Beverages', name:'Cold Coffee', desc:'Chilled and frothy, topped with cream.', veg:true, emoji:'🥤', bg:'rgba(15,92,92,.12)',
+  {id:'m6', cat:'Breads', name:'Butter Naan', desc:'Soft tandoor-baked bread brushed with butter.', veg:true, emoji:'🫓', bg:'rgba(85,139,47,.14)', serves:'1'},
+  {id:'m7', cat:'Beverages', name:'Masala Chai', desc:'Classic spiced milk tea.', veg:true, emoji:'🍵', bg:'rgba(124,179,66,.18)', serves:'1'},
+  {id:'m8', cat:'Beverages', name:'Cold Coffee', desc:'Chilled and frothy, topped with cream.', veg:true, emoji:'🥤', bg:'rgba(85,139,47,.14)', serves:'1',
     sizes:[{label:'Regular',price:90},{label:'Large',price:130}]},
 ];
+
+/* ---------------- Menu overrides from admin (Firestore) ----------------
+   admin.html writes to menuOverrides/{itemId} with a {serves} field.
+   This merges those overrides into MENU before first render, so you can
+   change "Serves X" from the admin panel without editing this file. */
+async function loadMenuOverrides(){
+  if(!firebaseReady) return;
+  try{
+    const snap = await db.collection('menuOverrides').get();
+    snap.forEach(doc=>{
+      const item = MENU.find(m=>m.id===doc.id);
+      if(item && doc.data().serves) item.serves = doc.data().serves;
+    });
+  } catch(err){ console.warn('Menu overrides not loaded:', err); }
+}
 const CAT_ICONS = {'Starters':'🍢','Main Course':'🍛','Breads':'🫓','Beverages':'🥤'};
 
 let cart = {}; // { cartKey: {itemId, name, size, addons:[names], unitPrice, qty} }
@@ -408,10 +445,11 @@ if(firebaseReady){
   showScreen('authScreen');
 }
 
-function enterApp(){
+async function enterApp(){
   showScreen('app');
   document.getElementById('greetName').textContent = (customerDoc.name||'there').split(' ')[0];
   renderCategories();
+  await loadMenuOverrides();
   renderMenu();
   listenToMyOrders();
 }
@@ -456,13 +494,17 @@ function createMap(lat,lng){
   });
   marker = new google.maps.Marker({position:{lat,lng}, map, draggable:true});
   document.getElementById('confirmAddrBtn').disabled = false;
+  setTimeout(()=>{
+    google.maps.event.trigger(map, 'resize');
+    map.setCenter({lat,lng});
+  }, 300);
 }
 
 function locateMe(){
   if(!navigator.geolocation){ alert('Geolocation not supported on this device.'); return; }
   navigator.geolocation.getCurrentPosition((pos)=>{
     const {latitude:lat, longitude:lng} = pos.coords;
-    if(map){ map.setCenter({lat,lng}); map.setZoom(17); marker.setPosition({lat,lng}); }
+    if(map){ google.maps.event.trigger(map,'resize'); map.setCenter({lat,lng}); map.setZoom(17); marker.setPosition({lat,lng}); }
     else createMap(lat,lng);
   }, (err)=>{
     alert('Location access denied. Drag the pin on the map manually to set your location.');
@@ -490,6 +532,8 @@ async function confirmAddress(){
 
 /* ---------------- Categories & grid ---------------- */
 let activeCat = null;
+let activeFilters = {veg:false, under200:false};
+let favorites = new Set();
 function renderCategories(){
   const cats = [...new Set(MENU.map(m=>m.cat))];
   document.getElementById('catBar').innerHTML = cats.map((c,i)=>`
@@ -505,18 +549,39 @@ function filterCat(cat, el){
   el.classList.add('active');
   renderMenu();
 }
+function toggleFilter(key, el){
+  activeFilters[key] = !activeFilters[key];
+  el.classList.toggle('active', activeFilters[key]);
+  renderMenu();
+}
+function toggleFavorite(id, ev){
+  ev.stopPropagation();
+  if(favorites.has(id)) favorites.delete(id); else favorites.add(id);
+  renderMenu();
+}
+function itemMinPrice(m){ return m.sizes ? m.sizes[0].price : m.price; }
 function renderMenu(){
   const q = document.getElementById('searchBar').value.toLowerCase();
   let items = MENU;
   if(q) items = items.filter(m=>m.name.toLowerCase().includes(q));
   else if(activeCat) items = items.filter(m=>m.cat===activeCat);
+  if(activeFilters.veg) items = items.filter(m=>m.veg);
+  if(activeFilters.under200) items = items.filter(m=>itemMinPrice(m) <= 200);
   document.getElementById('menuList').innerHTML = items.map(m=>{
     const priceLabel = m.sizes ? `From ₹${m.sizes[0].price}` : `₹${m.price !== undefined ? m.price : (m.sizes ? m.sizes[0].price : '')}`;
+    const fav = favorites.has(m.id);
     return `
     <div class="food-card" onclick="openItemDetail('${m.id}')">
-      <div class="food-card-img" style="background:${m.bg}">${m.emoji}</div>
+      <div class="food-card-img-wrap">
+        <div class="food-card-img" style="background:${m.bg}">${m.emoji}</div>
+        <div class="food-heart ${fav?'on':''}" onclick="toggleFavorite('${m.id}', event)">${fav?'♥':'♡'}</div>
+      </div>
       <div class="food-card-name">${m.name}</div>
-      <div class="food-card-price">${priceLabel}</div>
+      ${m.serves ? `<div class="food-card-serves">🍽 Serves ${m.serves}</div>` : ''}
+      <div class="food-card-price-row">
+        <div class="food-card-price">${priceLabel}</div>
+        <button class="food-add-btn" onclick="event.stopPropagation(); openItemDetail('${m.id}')">ADD</button>
+      </div>
     </div>`;
   }).join('') || `<div class="empty-state" style="grid-column:1/-1">Koi dish nahi mili</div>`;
 }
@@ -535,6 +600,7 @@ function openItemDetail(id){
   document.getElementById('detailHero').textContent = detailItem.emoji;
   document.getElementById('detailName').textContent = detailItem.name;
   document.getElementById('detailDesc').textContent = detailItem.desc || '';
+  document.getElementById('detailServes').textContent = detailItem.serves ? `🍽 Serves ${detailItem.serves}` : '';
   document.getElementById('detailQty').textContent = detailQtyVal;
 
   const sizeSection = document.getElementById('detailSizeSection');
