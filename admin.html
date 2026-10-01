@@ -28,20 +28,20 @@
 </script>
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Work+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 
 <style>
   :root{
-    --ink:#241A16; --paper:#FFF7EA; --paper-2:#F3E8D3;
-    --marigold:#E3A008; --teal:#0F5C5C; --teal-dark:#0A4444;
-    --line:#E4D6BC; --red:#B3261E; --green:#1E5C1E;
+    --ink:#1A1D16; --paper:#FFFFFF; --paper-2:#EEF4E4;
+    --marigold:#7CB342; --teal:#33691E; --teal-dark:#1B5E20;
+    --line:#E4E9DC; --red:#B3261E; --green:#1E5C1E;
   }
   *{box-sizing:border-box;}
-  body{margin:0;background:var(--paper);color:var(--ink);font-family:'Plus Jakarta Sans',sans-serif;}
-  h1,h2{font-family:'Baloo 2',sans-serif;}
+  body{margin:0;background:var(--paper);color:var(--ink);font-family:'Work Sans',sans-serif;}
+  h1,h2{font-family:'Work Sans',sans-serif;font-weight:800;}
   button{font-family:inherit;cursor:pointer;border:none;}
 
   #pinScreen{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;background:var(--teal-dark);color:#fff;}
@@ -55,7 +55,7 @@
   header{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;flex-wrap:wrap;gap:10px;}
   .stat-bar{display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;}
   .stat{background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px 16px;font-size:13px;}
-  .stat b{font-family:'Baloo 2',sans-serif;font-size:20px;display:block;}
+  .stat b{font-family:'Work Sans',sans-serif;font-weight:800;font-size:20px;display:block;}
 
   .filter-bar{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;}
   .filter-bar button{padding:7px 16px;border-radius:999px;background:#fff;border:1px solid var(--line);font-size:13px;font-weight:600;color:#6b5e4f;}
@@ -90,6 +90,12 @@
   .eta-save{background:var(--marigold);color:var(--ink);padding:7px 12px;border-radius:8px;font-size:12px;font-weight:700;}
 
   .empty-state{text-align:center;padding:60px 20px;color:#9a8b76;}
+
+  .menu-edit-row{display:flex;justify-content:space-between;align-items:center;background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px 16px;margin-bottom:10px;}
+  .menu-edit-name{font-weight:700;font-size:14px;}
+  .menu-edit-controls{display:flex;gap:8px;align-items:center;}
+  .serves-select{padding:7px 10px;border-radius:8px;border:1px solid var(--line);font-size:13px;}
+  .serves-save{background:var(--marigold);color:#fff;padding:7px 14px;border-radius:8px;font-size:12px;font-weight:700;}
 </style>
 </head>
 <body>
@@ -103,7 +109,7 @@
 
 <div id="dash">
   <header>
-    <h2 style="margin:0">Orders</h2>
+    <h2 style="margin:0" id="dashTitle">Orders</h2>
     <div class="stat-bar">
       <div class="stat"><b id="statToday">0</b>Today's orders</div>
       <div class="stat"><b id="statActive">0</b>Active</div>
@@ -111,6 +117,12 @@
     </div>
   </header>
 
+  <div class="filter-bar" style="margin-bottom:10px">
+    <button class="active" data-tab="orders" onclick="setTab('orders',this)">Orders</button>
+    <button data-tab="menu" onclick="setTab('menu',this)">Menu</button>
+  </div>
+
+  <div id="ordersPane">
   <div class="filter-bar">
     <button class="active" data-f="all" onclick="setFilter('all',this)">All</button>
     <button data-f="placed" onclick="setFilter('placed',this)">Placed</button>
@@ -121,6 +133,12 @@
   </div>
 
   <div id="ordersList"></div>
+  </div>
+
+  <div id="menuPane" style="display:none">
+    <p style="font-size:13px;color:#6b5e4f;margin:0 0 14px">Yahan se har dish ka "Serves" value set karo — customer app me yahi dikhega, code edit karne ki zaroorat nahi.</p>
+    <div id="menuEditList"></div>
+  </div>
 </div>
 
 <script>
@@ -138,10 +156,74 @@ document.getElementById('pinInput').addEventListener('keydown', e=>{ if(e.key===
 
 let allOrders = [];
 let currentFilter = 'all';
+let db;
+
+/* Same item list as index.html's MENU (id + name only — this panel only
+   needs to edit the "serves" field, not the full catalog). Keep ids in
+   sync with index.html if you add/remove menu items there. */
+const MENU_ITEMS = [
+  {id:'m1', name:'Paneer Tikka'},
+  {id:'m2', name:'Chicken Seekh Kebab'},
+  {id:'m3', name:'Butter Chicken'},
+  {id:'m4', name:'Dal Makhani'},
+  {id:'m5', name:'Veg Biryani'},
+  {id:'m6', name:'Butter Naan'},
+  {id:'m7', name:'Masala Chai'},
+  {id:'m8', name:'Cold Coffee'},
+];
+let menuOverrides = {};
+
+function setTab(tab, el){
+  document.querySelectorAll('.filter-bar button[data-tab]').forEach(b=>b.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('ordersPane').style.display = tab==='orders' ? 'block' : 'none';
+  document.getElementById('menuPane').style.display = tab==='menu' ? 'block' : 'none';
+  document.getElementById('dashTitle').textContent = tab==='orders' ? 'Orders' : 'Menu';
+  if(tab==='menu') renderMenuTab();
+}
+
+async function renderMenuTab(){
+  try{
+    const snap = await db.collection('menuOverrides').get();
+    menuOverrides = {};
+    snap.forEach(doc=>{ menuOverrides[doc.id] = doc.data(); });
+  } catch(err){ console.warn('Could not load menu overrides:', err); }
+
+  document.getElementById('menuEditList').innerHTML = MENU_ITEMS.map(item=>{
+    const current = (menuOverrides[item.id] && menuOverrides[item.id].serves) || '';
+    return `
+    <div class="menu-edit-row">
+      <div class="menu-edit-name">${item.name}</div>
+      <div class="menu-edit-controls">
+        <select class="serves-select" id="serves-${item.id}">
+          <option value="" ${current===''?'selected':''}>Default</option>
+          <option value="1" ${current==='1'?'selected':''}>Serves 1</option>
+          <option value="1-2" ${current==='1-2'?'selected':''}>Serves 1-2</option>
+          <option value="2-3" ${current==='2-3'?'selected':''}>Serves 2-3</option>
+          <option value="3-4" ${current==='3-4'?'selected':''}>Serves 3-4</option>
+        </select>
+        <button class="serves-save" onclick="saveServes('${item.id}')">Save</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function saveServes(itemId){
+  const val = document.getElementById('serves-'+itemId).value;
+  try{
+    if(val === ''){
+      await db.collection('menuOverrides').doc(itemId).delete().catch(()=>{});
+    } else {
+      await db.collection('menuOverrides').doc(itemId).set({serves: val});
+    }
+  } catch(err){
+    alert('Save nahi hua: '+err.message);
+  }
+}
 
 function initFirebaseAndListen(){
   firebase.initializeApp(FIREBASE_CONFIG);
-  const db = firebase.firestore();
+  db = firebase.firestore();
   db.collection('orders').orderBy('createdAt','desc').onSnapshot(snap=>{
     allOrders = snap.docs.map(d=>({id:d.id, ref:d.ref, ...d.data()}));
     renderStats();
