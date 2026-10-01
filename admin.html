@@ -191,6 +191,7 @@
     <button class="active" data-tab="orders" onclick="setTab('orders',this)">Orders</button>
     <button data-tab="menu" onclick="setTab('menu',this)">Menu</button>
     <button data-tab="categories" onclick="setTab('categories',this)">Categories</button>
+    <button data-tab="delivery" onclick="setTab('delivery',this)">Delivery</button>
     <button data-tab="banner" onclick="setTab('banner',this)">Banner</button>
   </div>
 
@@ -205,6 +206,24 @@
   </div>
 
   <div id="ordersList"></div>
+  </div>
+
+  <div id="deliveryPane" style="display:none">
+    <p style="font-size:13px;color:#6b5e4f;margin:0 0 12px">Outlet ki location aur delivery radius set karo. Is radius se bahar ke customers order nahi kar payenge aur unhe aapka contact number dikhega.</p>
+    <div class="fld"><label>Google Maps link ya "lat, lng" paste karo (optional)</label><input type="text" id="dLink" placeholder="https://www.google.com/maps/@28.61,77.20,17z  ya  28.6139, 77.2090" oninput="parseMapLink()"><div class="hint">Chhota link (maps.app.goo.gl) kaam nahi karta — Maps me location kholo aur address bar ka poora link paste karo.</div></div>
+    <div class="fld-row">
+      <div class="fld"><label>Latitude *</label><input type="number" id="dLat" step="any" onchange="paintMap()"></div>
+      <div class="fld"><label>Longitude *</label><input type="number" id="dLng" step="any" onchange="paintMap()"></div>
+    </div>
+    <button type="button" class="btn-ghost up-btn" onclick="useMyLocation()"><svg class="ic" aria-hidden="true"><use href="#i-pin"/></svg> Use my current location</button>
+    <iframe id="dMap" title="Outlet location" style="display:none;width:100%;height:220px;border:1px solid var(--line);border-radius:12px;margin:6px 0 12px" loading="lazy"></iframe>
+    <div class="fld-row">
+      <div class="fld"><label>Delivery radius (km) *</label><input type="number" id="dRadius" min="0.5" step="0.5" placeholder="e.g. 5"></div>
+      <div class="fld"><label>Contact number (out of range par dikhega)</label><input type="text" id="dPhone" inputmode="numeric" maxlength="10" placeholder="10-digit number"></div>
+    </div>
+    <button class="btn-primary" id="dSaveBtn" onclick="saveDelivery()">Save delivery settings</button>
+    <button class="btn-danger" onclick="clearDelivery()">Remove radius limit</button>
+    <div id="dMsg" style="font-size:13px;font-weight:600;margin-top:10px"></div>
   </div>
 
   <div id="catPane" style="display:none">
@@ -413,7 +432,61 @@ function setTab(tab, el){
   document.getElementById('menuPane').style.display = tab==='menu' ? 'block' : 'none';
   document.getElementById('bannerPane').style.display = tab==='banner' ? 'block' : 'none';
   document.getElementById('catPane').style.display = tab==='categories' ? 'block' : 'none';
-  document.getElementById('dashTitle').textContent = {orders:'Orders',menu:'Menu',categories:'Categories',banner:'Banner'}[tab];
+  document.getElementById('deliveryPane').style.display = tab==='delivery' ? 'block' : 'none';
+  document.getElementById('dashTitle').textContent = {orders:'Orders',menu:'Menu',categories:'Categories',delivery:'Delivery',banner:'Banner'}[tab];
+}
+
+/* ---------------- Delivery radius (settings/delivery) ---------------- */
+const dv = id => document.getElementById(id);
+function paintMap(){
+  const lat = parseFloat(dv('dLat').value), lng = parseFloat(dv('dLng').value), f = dv('dMap');
+  if(isNaN(lat) || isNaN(lng)){ f.style.display = 'none'; return; }
+  f.src = `https://maps.google.com/maps?q=${lat},${lng}&z=15&output=embed`;
+  f.style.display = 'block';
+}
+function parseMapLink(){
+  const t = dv('dLink').value;
+  const m = t.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/) || t.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/) ||
+            t.match(/[?&](?:q|ll|query)=(-?\d+\.\d+),\s*(-?\d+\.\d+)/) || t.match(/^\s*(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)\s*$/);
+  if(m){ dv('dLat').value = m[1]; dv('dLng').value = m[2]; paintMap(); }
+}
+function useMyLocation(){
+  if(!navigator.geolocation){ dv('dMsg').textContent = 'Is browser me location support nahi hai.'; return; }
+  navigator.geolocation.getCurrentPosition(pos=>{
+    dv('dLat').value = pos.coords.latitude.toFixed(6); dv('dLng').value = pos.coords.longitude.toFixed(6); paintMap();
+  }, ()=>{ dv('dMsg').style.color = 'var(--red)'; dv('dMsg').textContent = 'Location allow nahi hui. Browser me location permission do ya link paste karo.'; }, {enableHighAccuracy:true, timeout:10000});
+}
+async function listenDelivery(){
+  try{
+    const d = await db.collection('settings').doc('delivery').get();
+    if(!d.exists) return;
+    const c = d.data();
+    dv('dLat').value = c.lat ?? ''; dv('dLng').value = c.lng ?? '';
+    dv('dRadius').value = c.radiusKm ?? ''; dv('dPhone').value = c.phone || '';
+    paintMap();
+  } catch(err){ dv('dMsg').style.color = 'var(--red)'; dv('dMsg').textContent = 'Load nahi hua: '+err.message; }
+}
+async function saveDelivery(){
+  const lat = parseFloat(dv('dLat').value), lng = parseFloat(dv('dLng').value), radiusKm = parseFloat(dv('dRadius').value);
+  const phone = dv('dPhone').value.replace(/\s/g,''), msg = dv('dMsg');
+  msg.style.color = 'var(--red)';
+  if(isNaN(lat) || isNaN(lng) || lat<-90 || lat>90 || lng<-180 || lng>180) return void(msg.textContent = 'Sahi latitude aur longitude daalo.');
+  if(isNaN(radiusKm) || radiusKm<=0) return void(msg.textContent = 'Radius km me daalo (0 se zyada).');
+  if(phone && !/^[6-9]\d{9}$/.test(phone)) return void(msg.textContent = 'Contact number 10-digit mobile hona chahiye.');
+  const b = dv('dSaveBtn'); b.disabled = true; b.textContent = 'Saving…';
+  try{
+    await db.collection('settings').doc('delivery').set({lat, lng, radiusKm, phone, updatedAt: firebase.firestore.FieldValue.serverTimestamp()});
+    msg.style.color = 'var(--green)'; msg.textContent = 'Save ho gaya — customer app me turant lagu.';
+  } catch(err){ msg.textContent = 'Save nahi hua: '+err.message; }
+  finally{ b.disabled = false; b.textContent = 'Save delivery settings'; }
+}
+async function clearDelivery(){
+  if(!confirm('Radius limit hata dein? Phir kisi bhi location se order aa sakta hai.')) return;
+  try{
+    await db.collection('settings').doc('delivery').delete();
+    ['dLat','dLng','dRadius','dPhone','dLink'].forEach(i=>dv(i).value = ''); paintMap();
+    dv('dMsg').style.color = 'var(--green)'; dv('dMsg').textContent = 'Radius limit hata di gayi.';
+  } catch(err){ dv('dMsg').style.color = 'var(--red)'; dv('dMsg').textContent = 'Nahi hua: '+err.message; }
 }
 
 /* ---------------- Categories ("categories" collection) ----------------
@@ -789,6 +862,7 @@ function initFirebaseAndListen(){
   db = firebase.firestore();
   listenMenu();
   listenCats();
+  listenDelivery();
   listenBanner();
   db.collection('orders').orderBy('createdAt','desc').onSnapshot(snap=>{
     allOrders = snap.docs.map(d=>({id:d.id, ref:d.ref, ...d.data()}));
@@ -842,7 +916,7 @@ function renderList(){
             <div class="oid">#${o.id.slice(-6).toUpperCase()}</div>
             <div class="cust-name">${esc(o.customerName || 'Customer')}</div>
             <div class="cust-meta">${o.phone ? `<a class="addr-link" href="tel:${esc(o.phone)}">${esc(o.phone)}</a>` : esc(o.email || '')} &middot; ${esc(addr.label || 'Address')}</div>
-            <div class="cust-meta addr-full">${[addr.house, addr.area, addr.landmark ? 'Landmark: '+addr.landmark : '', [addr.city, addr.pincode].filter(Boolean).join(' - ')].filter(Boolean).map(esc).join('<br>')}</div>
+            <div class="cust-meta addr-full">${[addr.house, addr.area, addr.landmark ? 'Landmark: '+addr.landmark : ''].filter(Boolean).map(esc).join('<br>')}</div>
             <a class="addr-link" href="${mapUrl}" target="_blank"><svg class="ic " aria-hidden="true"><use href="#i-pin"/></svg> View location on map</a>
           </div>
           <span class="status-pill status-${o.status}">${STATUS_LABEL[o.status] || o.status}</span>
